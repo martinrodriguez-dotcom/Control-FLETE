@@ -35,7 +35,9 @@ export const SimpleCRUDView: React.FC<SimpleCRUDProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const fd = new FormData(e.target as HTMLFormElement);
-    const formData = Object.fromEntries(fd.entries());
+    
+    // Aquí está la corrección clave para TypeScript (as Record<string, any>)
+    const formData = Object.fromEntries(fd.entries()) as Record<string, any>;
     
     // Convertir automáticamente a número los campos conocidos que lo requieran
     Object.keys(formData).forEach(k => {
@@ -122,7 +124,7 @@ export const SimpleCRUDView: React.FC<SimpleCRUDProps> = ({
           </div>
           
           <div className="mt-6 flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button type="submit">Guardar</Button>
           </div>
         </form>
