@@ -11,7 +11,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen }) => {
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Panel', icon: LayoutDashboard },
     { id: 'units', label: 'Unidades', icon: Truck },
     { id: 'clients', label: 'Clientes', icon: Users },
     { id: 'trips', label: 'Viajes', icon: Map },
