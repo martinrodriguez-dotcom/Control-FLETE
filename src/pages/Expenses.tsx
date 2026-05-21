@@ -18,7 +18,8 @@ export const ExpensesView: React.FC<ExpensesProps> = ({ expenses, units, onSave,
   const [editingItem, setEditingItem] = useState<Partial<Expense> | null>(null);
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR');
+  // Corrección de zona horaria aplicada aquí:
+  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' });
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
