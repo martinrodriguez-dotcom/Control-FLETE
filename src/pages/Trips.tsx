@@ -1,170 +1,167 @@
-import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Edit2, Trash2, Copy } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { Trip, Expense, FuelLoad, TransportUnit } from '../types';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
+import { Trip, Client, TransportUnit } from '../types';
 
-interface DashboardProps {
+interface TripsProps {
   trips: Trip[];
-  expenses: Expense[];
-  fuel: FuelLoad[];
+  clients: Client[];
   units: TransportUnit[];
+  onSave: (collectionName: string, data: any) => void;
+  onDelete: (collectionName: string, id: string) => void;
 }
 
-export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel, units }) => {
-  // Utilidades
+export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave, onDelete }) => {
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<Partial<Trip> | null>(null);
+
+  // Utilidades de formato
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
   
-  // Corrección de zona horaria para visualización:
+  // Corrección de zona horaria aplicada aquí para los viajes:
   const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' });
-  
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
 
-  // Filtrar datos solo del mes actual (Usando split para ser inmune a diferencias horarias)
-  const isCurrentMonth = (dateStr: string) => {
-    if (!dateStr) return false;
-    const [year, month] = dateStr.split('-');
-    return Number(month) - 1 === currentMonth && Number(year) === currentYear;
+  // Lógica para enviar el formulario
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const fd = new FormData(e.target as HTMLFormElement);
+    const data = Object.fromEntries(fd.entries());
+    
+    // Asegurar que los valores numéricos se guarden como números
+    const payload = {
+      ...editingItem,
+      ...data,
+      value: Number(data.value),
+      km: Number(data.km)
+    };
+
+    onSave('trips', payload);
+    setModalOpen(false);
+    setEditingItem(null);
   };
 
-  const monthlyTrips = trips.filter(t => isCurrentMonth(t.date));
-  const monthlyExpenses = expenses.filter(e => isCurrentMonth(e.date));
-  const monthlyFuel = fuel.filter(f => isCurrentMonth(f.date));
+  // Lógica para duplicar un viaje
+  const handleDuplicate = (trip: Trip) => {
+    // Extraemos el ID y createdAt para no sobreescribir el viaje original.
+    // El resto de los datos (...tripData) se pasan al formulario.
+    const { id, createdAt, ...tripData } = trip; 
+    setEditingItem(tripData);
+    setModalOpen(true);
+  };
 
-  // Cálculos financieros
-  const revenue = monthlyTrips.reduce((acc, t) => acc + Number(t.value), 0);
-  const expensesTotal = monthlyExpenses.reduce((acc, e) => acc + Number(e.amount), 0);
-  const fuelTotal = monthlyFuel.reduce((acc, f) => acc + Number(f.total), 0);
-  const netProfit = revenue - expensesTotal - fuelTotal;
-
-  // Lógica de Alertas: Seguros a punto de vencer (próximos 30 días) o vencidos
-  const expiringInsurance = units.filter(u => {
-    if (u.status !== 'activo' || !u.insuranceExpiry) return false;
-    
-    // Separamos el string para crear la fecha en hora local (evita desfases de UTC)
-    const [y, m, d] = u.insuranceExpiry.split('-');
-    const exp = new Date(Number(y), Number(m) - 1, Number(d));
-    
-    const diff = exp.getTime() - now.getTime();
-    const days = Math.ceil(diff / (1000 * 3600 * 24));
-    
-    return days >= -30 && days <= 30; // Muestra vencidos (hasta 30 días) y por vencer (30 días)
-  });
+  // Opciones para los selectores del formulario
+  const clientOptions = clients.map(c => ({ label: c.company || c.name, value: c.id }));
+  const unitOptions = units.map(u => ({ label: `${u.name} (${u.plate})`, value: u.id }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Cabecera */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Resumen Operativo</h2>
-        <p className="text-slate-500 dark:text-slate-400">
-          Métricas del mes actual ({now.toLocaleString('es', { month: 'long' })})
-        </p>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Viajes</h2>
+        <Button icon={Plus} onClick={() => { setEditingItem({}); setModalOpen(true); }}>
+          Registrar Viaje
+        </Button>
       </div>
 
-      {/* Tarjetas de Métricas (KPIs) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-blue-500">
-          <div className="text-slate-500 text-sm font-medium">Facturación Bruta</div>
-          <div className="text-3xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(revenue)}</div>
-          <div className="text-xs text-slate-400 mt-2">{monthlyTrips.length} viajes realizados</div>
-        </Card>
-        
-        <Card className="border-l-4 border-l-red-500">
-          <div className="text-slate-500 text-sm font-medium">Gastos Operativos</div>
-          <div className="text-3xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(expensesTotal)}</div>
-        </Card>
-        
-        <Card className="border-l-4 border-l-orange-500">
-          <div className="text-slate-500 text-sm font-medium">Combustible</div>
-          <div className="text-3xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(fuelTotal)}</div>
-        </Card>
-        
-        <Card className={`border-l-4 ${netProfit >= 0 ? 'border-l-emerald-500' : 'border-l-red-500'}`}>
-          <div className="text-slate-500 text-sm font-medium">Ganancia Neta</div>
-          <div className={`text-3xl font-bold mt-1 ${netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-            {formatCurrency(netProfit)}
-          </div>
-          <div className="text-xs text-slate-400 mt-2">
-            Margen: {revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : 0}%
-          </div>
-        </Card>
-      </div>
-
-      {/* Gráficos y Alertas */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Flujo de Caja */}
-        <Card className="lg:col-span-2">
-          <h3 className="font-semibold text-lg mb-4 text-slate-900 dark:text-white">Flujo de Caja Simplificado</h3>
-          <div className="space-y-4">
-            <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-8 flex overflow-hidden">
-              <div 
-                className="bg-blue-500 h-full flex items-center px-2 text-xs text-white font-bold transition-all duration-500" 
-                style={{ width: revenue ? '100%' : '0%' }}
-              >
-                Ingresos
-              </div>
-            </div>
-            <div className="w-full flex h-8 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
-              <div 
-                className="bg-red-500 h-full flex items-center px-2 text-xs text-white font-bold transition-all duration-500" 
-                style={{ width: revenue ? `${(expensesTotal / revenue) * 100}%` : '0%' }}
-              >
-                Gastos
-              </div>
-              <div 
-                className="bg-orange-500 h-full flex items-center px-2 text-xs text-white font-bold transition-all duration-500 border-l border-white/20" 
-                style={{ width: revenue ? `${(fuelTotal / revenue) * 100}%` : '0%' }}
-              >
-                Comb.
-              </div>
-              <div 
-                className="bg-emerald-500 h-full flex items-center px-2 text-xs text-white font-bold transition-all duration-500 border-l border-white/20" 
-                style={{ width: revenue && netProfit > 0 ? `${(netProfit / revenue) * 100}%` : '0%' }}
-              >
-                Neto
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Panel de Alertas */}
-        <Card>
-          <h3 className="font-semibold text-lg mb-4 text-slate-900 dark:text-white flex items-center gap-2">
-            <AlertCircle size={20} className="text-orange-500"/> Alertas
-          </h3>
-          {expiringInsurance.length > 0 ? (
-            <ul className="space-y-3">
-              {expiringInsurance.map(u => {
-                const [y, m, d] = u.insuranceExpiry.split('-');
-                const exp = new Date(Number(y), Number(m) - 1, Number(d));
-                const isExpired = exp.getTime() < new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-                
-                return (
-                  <li 
-                    key={u.id} 
-                    className={`flex flex-col justify-between text-sm p-3 rounded-lg border ${
-                      isExpired 
-                        ? 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/30'
-                        : 'bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800/30'
-                    }`}
-                  >
-                    <span className="font-medium">
-                      {isExpired ? 'Seguro Vencido:' : 'Próximo a Vencer:'} 
+      {/* Tabla de Viajes */}
+      <Card className="overflow-x-auto">
+        <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
+          <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
+            <tr>
+              <th className="px-4 py-3">Fecha</th>
+              <th className="px-4 py-3">Ruta</th>
+              <th className="px-4 py-3">Cliente</th>
+              <th className="px-4 py-3">Unidad</th>
+              <th className="px-4 py-3 text-right">Valor</th>
+              <th className="px-4 py-3">Cobro</th>
+              <th className="px-4 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trips.map(t => {
+              // Buscar el nombre del cliente y de la unidad cruzando los IDs
+              const client = clients.find(c => c.id === t.clientId);
+              const unit = units.find(u => u.id === t.unitId);
+              
+              return (
+                <tr key={t.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-4 py-3 whitespace-nowrap">{formatDate(t.date)}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-slate-900 dark:text-white">{t.origin}</div>
+                    <div className="text-xs text-slate-500">a {t.destination} ({t.km}km)</div>
+                  </td>
+                  <td className="px-4 py-3">{client?.company || 'N/A'}</td>
+                  <td className="px-4 py-3">{unit?.name || 'N/A'}</td>
+                  <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-white">
+                    {formatCurrency(t.value)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      t.paymentStatus === 'cobrado' 
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' 
+                        : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                    }`}>
+                      {t.paymentStatus === 'cobrado' ? 'Cobrado' : 'Pendiente'}
                     </span>
-                    <span>{u.name} ({u.plate}) - {formatDate(u.insuranceExpiry)}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              No hay alertas activas. Todo está en orden.
-            </p>
-          )}
-        </Card>
-      </div>
+                  </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <Button variant="ghost" icon={Copy} onClick={() => handleDuplicate(t)} className="p-1 text-blue-500 mr-1" title="Duplicar viaje" />
+                    <Button variant="ghost" icon={Edit2} onClick={() => { setEditingItem(t); setModalOpen(true); }} className="p-1 mr-1" title="Editar viaje" />
+                    <Button variant="ghost" icon={Trash2} onClick={() => onDelete('trips', t.id)} className="p-1 text-red-500" title="Eliminar viaje" />
+                  </td>
+                </tr>
+              );
+            })}
+            {trips.length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-center py-6 text-slate-500">
+                  No hay viajes registrados
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
+
+      {/* Modal del Formulario */}
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setModalOpen(false)} 
+        title={editingItem?.id ? "Editar Viaje" : "Registrar Viaje"}
+      >
+        <form onSubmit={handleSave}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Fecha" name="date" type="date" defaultValue={editingItem?.date} required />
+            <Input label="Cliente" name="clientId" type="select" options={clientOptions} defaultValue={editingItem?.clientId} required />
+            <Input label="Unidad" name="unitId" type="select" options={unitOptions} defaultValue={editingItem?.unitId} required />
+            <Input label="Origen" name="origin" defaultValue={editingItem?.origin} required />
+            <Input label="Destino" name="destination" defaultValue={editingItem?.destination} required />
+            <Input label="Kilómetros" name="km" type="number" defaultValue={editingItem?.km} required />
+            <Input label="Valor Cobrado ($)" name="value" type="number" defaultValue={editingItem?.value} required />
+            <Input 
+              label="Estado de Cobro" 
+              name="paymentStatus" 
+              type="select" 
+              defaultValue={editingItem?.paymentStatus || 'pendiente'} 
+              options={[{label: 'Pendiente', value: 'pendiente'}, {label: 'Cobrado', value: 'cobrado'}]} 
+            />
+            <div className="sm:col-span-2">
+              <Input label="Método de Pago" name="paymentMethod" defaultValue={editingItem?.paymentMethod} />
+            </div>
+            <div className="sm:col-span-2">
+              <Input label="Observaciones" name="notes" type="textarea" defaultValue={editingItem?.notes} />
+            </div>
+          </div>
+          
+          <div className="mt-6 flex justify-end gap-3">
+            <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button type="submit">Guardar Viaje</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
