@@ -13,16 +13,19 @@ interface DashboardProps {
 export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel, units }) => {
   // Utilidades
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR');
+  
+  // Corrección de zona horaria para visualización:
+  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' });
   
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
 
-  // Filtrar datos solo del mes actual
+  // Filtrar datos solo del mes actual (Usando split para ser inmune a diferencias horarias)
   const isCurrentMonth = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    if (!dateStr) return false;
+    const [year, month] = dateStr.split('-');
+    return Number(month) - 1 === currentMonth && Number(year) === currentYear;
   };
 
   const monthlyTrips = trips.filter(t => isCurrentMonth(t.date));
@@ -37,10 +40,15 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
 
   // Lógica de Alertas: Seguros a punto de vencer (próximos 30 días) o vencidos
   const expiringInsurance = units.filter(u => {
-    if (u.status !== 'activo') return false;
-    const exp = new Date(u.insuranceExpiry);
+    if (u.status !== 'activo' || !u.insuranceExpiry) return false;
+    
+    // Separamos el string para crear la fecha en hora local (evita desfases de UTC)
+    const [y, m, d] = u.insuranceExpiry.split('-');
+    const exp = new Date(Number(y), Number(m) - 1, Number(d));
+    
     const diff = exp.getTime() - now.getTime();
     const days = Math.ceil(diff / (1000 * 3600 * 24));
+    
     return days >= -30 && days <= 30; // Muestra vencidos (hasta 30 días) y por vencer (30 días)
   });
 
@@ -129,7 +137,10 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
           {expiringInsurance.length > 0 ? (
             <ul className="space-y-3">
               {expiringInsurance.map(u => {
-                const isExpired = new Date(u.insuranceExpiry).getTime() < now.getTime();
+                const [y, m, d] = u.insuranceExpiry.split('-');
+                const exp = new Date(Number(y), Number(m) - 1, Number(d));
+                const isExpired = exp.getTime() < new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                
                 return (
                   <li 
                     key={u.id} 
