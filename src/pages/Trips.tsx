@@ -20,7 +20,9 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
 
   // Utilidades de formato
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR');
+  
+  // Corrección de zona horaria aplicada aquí para los viajes:
+  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' });
 
   // Lógica para enviar el formulario
   const handleSave = (e: React.FormEvent) => {
@@ -145,7 +147,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
           </div>
           
           <div className="mt-6 flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button type="submit">Guardar Viaje</Button>
           </div>
         </form>
