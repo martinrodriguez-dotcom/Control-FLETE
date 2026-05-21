@@ -15,8 +15,10 @@ import { DashboardView } from './pages/Dashboard';
 import { UnitsView } from './pages/Units';
 import { TripsView } from './pages/Trips';
 import { SimpleCRUDView } from './pages/SimpleCRUD';
+import { ExpensesView } from './pages/Expenses';
+import { ReportsView } from './pages/Reports';
 
-// Componentes de UI (para inyectar en los formularios de SimpleCRUD)
+// Componentes de UI
 import { Input } from './components/ui/Input';
 
 export default function App() {
@@ -36,8 +38,6 @@ export default function App() {
 
   // Efecto: Manejo de Autenticación
   useEffect(() => {
-    // Para simplificar, iniciamos sesión de forma anónima automáticamente.
-    // En el futuro, puedes cambiar esto por signInWithEmailAndPassword.
     signInAnonymously(auth).catch(err => console.error("Error Auth:", err));
     
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -119,6 +119,14 @@ export default function App() {
               <TripsView trips={trips} clients={clients} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />
             )}
 
+            {view === 'expenses' && (
+              <ExpensesView expenses={expenses} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />
+            )}
+
+            {view === 'reports' && (
+              <ReportsView units={units} trips={trips} expenses={expenses} fuel={fuel} />
+            )}
+
             {/* VISTAS GENERADAS CON CRUD GENÉRICO */}
             {view === 'clients' && (
               <SimpleCRUDView 
@@ -141,37 +149,6 @@ export default function App() {
                     <Input label="Email" name="email" type="email" />
                     <Input label="Dirección" name="address" />
                     <Input label="CUIT" name="cuit" />
-                  </>
-                }
-              />
-            )}
-
-            {view === 'expenses' && (
-              <SimpleCRUDView 
-                title="Gastos Operativos" 
-                collectionName="expenses" 
-                data={expenses}
-                onSave={handleSaveItem}
-                onDelete={handleDeleteItem}
-                fields={[
-                  {key:'date', label:'Fecha', format: (val) => new Date(val).toLocaleDateString('es-AR')}, 
-                  {key:'category', label:'Categoría'}, 
-                  {key:'description', label:'Descripción'}, 
-                  {key:'amount', label:'Monto', format: (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val)}
-                ]}
-                FormContent={
-                  <>
-                    <Input label="Fecha" name="date" type="date" required />
-                    <Input label="Categoría" name="category" type="select" options={[
-                      {label:'Peajes', value:'peajes'}, {label:'Mecánica', value:'mecanica'}, 
-                      {label:'Neumáticos', value:'neumaticos'}, {label:'Viáticos', value:'viaticos'},
-                      {label:'Lavado', value:'lavado'}, {label:'Otros', value:'otros'}
-                    ]} required />
-                    <Input label="Unidad Afectada" name="unitId" type="select" options={units.map(u => ({label: u.name, value: u.id}))} required />
-                    <Input label="Monto ($)" name="amount" type="number" required />
-                    <div className="sm:col-span-2">
-                      <Input label="Descripción" name="description" required />
-                    </div>
                   </>
                 }
               />
@@ -204,13 +181,6 @@ export default function App() {
                   </>
                 }
               />
-            )}
-            
-            {view === 'reports' && (
-              <div className="p-8 text-center text-slate-500">
-                <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-white">Módulo de Reportes</h3>
-                <p>Aquí puedes integrar gráficas con Recharts y exportaciones en PDF/Excel basándote en los datos descargados.</p>
-              </div>
             )}
 
           </div>
