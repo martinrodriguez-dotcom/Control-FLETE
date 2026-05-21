@@ -1,191 +1,104 @@
-import { useState, useEffect } from 'react';
-import { auth, db } from './lib/firebase';
-import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query } from 'firebase/firestore';
+import React from 'react';
+import { Download } from 'lucide-react';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { TransportUnit, Trip, Expense, FuelLoad } from '../types';
 
-// Tipos
-import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad } from './types';
+interface ReportsProps {
+  units: TransportUnit[];
+  trips: Trip[];
+  expenses: Expense[];
+  fuel: FuelLoad[];
+}
 
-// Componentes de Layout
-import { Sidebar } from './components/layout/Sidebar';
-import { Header } from './components/layout/Header';
+export const ReportsView: React.FC<ReportsProps> = ({ units, trips, expenses, fuel }) => {
+  const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
-// Vistas / Pages
-import { DashboardView } from './pages/Dashboard';
-import { UnitsView } from './pages/Units';
-import { TripsView } from './pages/Trips';
-import { SimpleCRUDView } from './pages/SimpleCRUD';
-import { ExpensesView } from './pages/Expenses';
-import { ReportsView } from './pages/Reports';
+  // Calcular la data consolidada por cada unidad
+  const reportData = units.map(unit => {
+    const unitTrips = trips.filter(t => t.unitId === unit.id);
+    const unitExpenses = expenses.filter(e => e.unitId === unit.id);
+    const unitFuel = fuel.filter(f => f.unitId === unit.id);
 
-// Componentes de UI
-import { Input } from './components/ui/Input';
+    const totalRevenue = unitTrips.reduce((sum, t) => sum + Number(t.value), 0);
+    const totalExpenses = unitExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    const totalFuel = unitFuel.reduce((sum, f) => sum + Number(f.total), 0);
+    const netProfit = totalRevenue - totalExpenses - totalFuel;
 
-export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-  
-  const [view, setView] = useState<ViewState>('dashboard');
-  const [darkMode, setDarkMode] = useState(false);
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+    return {
+      ...unit,
+      totalRevenue,
+      totalExpenses,
+      totalFuel,
+      netProfit,
+      tripsCount: unitTrips.length
+    };
+  }).sort((a, b) => b.netProfit - a.netProfit); // Ordenar por la más rentable
 
-  // Estados de datos
-  const [units, setUnits] = useState<TransportUnit[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [fuel, setFuel] = useState<FuelLoad[]>([]);
-
-  // Efecto: Manejo de Autenticación
-  useEffect(() => {
-    signInAnonymously(auth).catch(err => console.error("Error Auth:", err));
+  // Función para exportar a Excel/CSV
+  const handleExportCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Unidad,Patente,Viajes,Ingresos,Gastos,Combustible,Ganancia Neta\n";
     
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoadingAuth(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Efecto: Sincronización en tiempo real con Firestore
-  useEffect(() => {
-    if (!user) return;
-    
-    const collections = ['units', 'clients', 'trips', 'expenses', 'fuel'];
-    const setters = { units: setUnits, clients: setClients, trips: setTrips, expenses: setExpenses, fuel: setFuel };
-    const unsubs: any[] = [];
-
-    collections.forEach(colName => {
-      // Estructura de base de datos segura por usuario: users/{userId}/{colección}
-      const q = query(collection(db, 'users', user.uid, colName));
-      const unsub = onSnapshot(q, 
-        (snap) => {
-          const data = snap.docs.map(doc => doc.data() as any).sort((a, b) => b.createdAt - a.createdAt);
-          setters[colName as keyof typeof setters](data);
-        },
-        (err) => console.error(`Error en la colección ${colName}:`, err)
-      );
-      unsubs.push(unsub);
+    reportData.forEach(row => {
+      csvContent += `"${row.name}","${row.plate}",${row.tripsCount},${row.totalRevenue},${row.totalExpenses},${row.totalFuel},${row.netProfit}\n`;
     });
 
-    return () => unsubs.forEach(u => u());
-  }, [user]);
-
-  // Funciones genéricas para guardar y eliminar en la base de datos
-  const handleSaveItem = async (collectionName: string, data: any) => {
-    if (!user) return;
-    const id = data.id || crypto.randomUUID();
-    const payload = { ...data, id, createdAt: data.createdAt || Date.now() };
-    await setDoc(doc(db, 'users', user.uid, collectionName, id), payload);
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Reporte_Rentabilidad_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
-
-  const handleDeleteItem = async (collectionName: string, id: string) => {
-    if (!user) return;
-    if (window.confirm('¿Estás seguro de eliminar este registro? Esta acción no se puede deshacer.')) {
-      await deleteDoc(doc(db, 'users', user.uid, collectionName, id));
-    }
-  };
-
-  // Pantalla de carga mientras se conecta a Firebase
-  if (loadingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
-    <div className={`min-h-screen flex ${darkMode ? 'dark bg-slate-900 text-white' : 'bg-slate-50 text-slate-900'}`}>
-      
-      <Sidebar view={view} setView={setView} isOpen={isSidebarOpen} setOpen={setSidebarOpen} />
-      
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header darkMode={darkMode} setDarkMode={setDarkMode} setSidebarOpen={setSidebarOpen} user={user} />
-        
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto">
-            
-            {/* VISTAS ESPECÍFICAS */}
-            {view === 'dashboard' && (
-              <DashboardView trips={trips} expenses={expenses} fuel={fuel} units={units} />
-            )}
-            
-            {view === 'units' && (
-              <UnitsView units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />
-            )}
-
-            {view === 'trips' && (
-              <TripsView trips={trips} clients={clients} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />
-            )}
-
-            {view === 'expenses' && (
-              <ExpensesView expenses={expenses} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />
-            )}
-
-            {view === 'reports' && (
-              <ReportsView units={units} trips={trips} expenses={expenses} fuel={fuel} />
-            )}
-
-            {/* VISTAS GENERADAS CON CRUD GENÉRICO */}
-            {view === 'clients' && (
-              <SimpleCRUDView 
-                title="Clientes" 
-                collectionName="clients" 
-                data={clients}
-                onSave={handleSaveItem}
-                onDelete={handleDeleteItem}
-                fields={[
-                  {key:'company', label:'Empresa'}, 
-                  {key:'name', label:'Contacto'}, 
-                  {key:'phone', label:'Teléfono'}, 
-                  {key:'cuit', label:'CUIT'}
-                ]}
-                FormContent={
-                  <>
-                    <Input label="Razón Social" name="company" required />
-                    <Input label="Nombre de Contacto" name="name" required />
-                    <Input label="Teléfono" name="phone" />
-                    <Input label="Email" name="email" type="email" />
-                    <Input label="Dirección" name="address" />
-                    <Input label="CUIT" name="cuit" />
-                  </>
-                }
-              />
-            )}
-
-            {view === 'fuel' && (
-              <SimpleCRUDView 
-                title="Cargas de Combustible" 
-                collectionName="fuel" 
-                data={fuel}
-                onSave={handleSaveItem}
-                onDelete={handleDeleteItem}
-                fields={[
-                  {key:'date', label:'Fecha', format: (val) => new Date(val).toLocaleDateString('es-AR')}, 
-                  {key:'liters', label:'Litros'}, 
-                  {key:'total', label:'Total', format: (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val)},
-                  {key:'station', label:'Estación'}
-                ]}
-                FormContent={
-                  <>
-                    <Input label="Fecha" name="date" type="date" required />
-                    <Input label="Unidad" name="unitId" type="select" options={units.map(u => ({label: u.name, value: u.id}))} required />
-                    <Input label="Litros" name="liters" type="number" required />
-                    <Input label="Precio por Litro ($)" name="pricePerLiter" type="number" required />
-                    <Input label="Total ($)" name="total" type="number" required />
-                    <Input label="Kilometraje Actual" name="currentKm" type="number" />
-                    <div className="sm:col-span-2">
-                      <Input label="Estación de Servicio" name="station" />
-                    </div>
-                  </>
-                }
-              />
-            )}
-
-          </div>
-        </main>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Reporte de Rentabilidad</h2>
+          <p className="text-slate-500 dark:text-slate-400">Análisis histórico completo por unidad</p>
+        </div>
+        <Button icon={Download} onClick={handleExportCSV}>Exportar CSV</Button>
       </div>
+
+      <Card className="overflow-x-auto">
+        <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
+          <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
+            <tr>
+              <th className="px-4 py-3">Unidad</th>
+              <th className="px-4 py-3 text-center">Viajes</th>
+              <th className="px-4 py-3 text-right">Ingresos Brutos</th>
+              <th className="px-4 py-3 text-right text-red-500">Gastos</th>
+              <th className="px-4 py-3 text-right text-orange-500">Combustible</th>
+              <th className="px-4 py-3 text-right text-emerald-500">Ganancia Neta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reportData.map(row => (
+              <tr key={row.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-slate-900 dark:text-white">{row.name}</div>
+                  <div className="text-xs text-slate-500">{row.plate}</div>
+                </td>
+                <td className="px-4 py-3 text-center font-medium">{row.tripsCount}</td>
+                <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-white">{formatCurrency(row.totalRevenue)}</td>
+                <td className="px-4 py-3 text-right text-red-600 dark:text-red-400">{formatCurrency(row.totalExpenses)}</td>
+                <td className="px-4 py-3 text-right text-orange-600 dark:text-orange-400">{formatCurrency(row.totalFuel)}</td>
+                <td className={`px-4 py-3 text-right font-bold ${row.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {formatCurrency(row.netProfit)}
+                </td>
+              </tr>
+            ))}
+            {reportData.length === 0 && (
+              <tr>
+                <td colSpan={6} className="text-center py-6 text-slate-500">No hay unidades para generar reportes</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
     </div>
   );
-}
+};
