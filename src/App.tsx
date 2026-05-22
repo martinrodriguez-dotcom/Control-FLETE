@@ -4,7 +4,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query } from 'firebase/firestore';
 
 // Tipos
-import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad } from './types';
+import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad, Settlement } from './types';
 
 // Componentes de Layout
 import { Sidebar } from './components/layout/Sidebar';
@@ -14,6 +14,7 @@ import { Header } from './components/layout/Header';
 import { DashboardView } from './pages/Dashboard';
 import { UnitsView } from './pages/Units';
 import { TripsView } from './pages/Trips';
+import { SettlementsView } from './pages/Settlements';
 import { SimpleCRUDView } from './pages/SimpleCRUD';
 import { ExpensesView } from './pages/Expenses';
 import { ReportsView } from './pages/Reports';
@@ -36,6 +37,7 @@ export default function App() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [fuel, setFuel] = useState<FuelLoad[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
 
   // Efecto: Manejo de Autenticación
   useEffect(() => {
@@ -50,8 +52,16 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     
-    const collections = ['units', 'clients', 'trips', 'expenses', 'fuel'];
-    const setters = { units: setUnits, clients: setClients, trips: setTrips, expenses: setExpenses, fuel: setFuel };
+    // Lista de colecciones a descargar desde Firebase
+    const collections = ['units', 'clients', 'trips', 'expenses', 'fuel', 'settlements'];
+    const setters = { 
+      units: setUnits, 
+      clients: setClients, 
+      trips: setTrips, 
+      expenses: setExpenses, 
+      fuel: setFuel,
+      settlements: setSettlements 
+    };
     const unsubs: any[] = [];
 
     collections.forEach(colName => {
@@ -114,6 +124,12 @@ export default function App() {
             {view === 'dashboard' && <DashboardView trips={trips} expenses={expenses} fuel={fuel} units={units} clients={clients} />}
             {view === 'units' && <UnitsView units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
             {view === 'trips' && <TripsView trips={trips} clients={clients} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
+            
+            {/* VISTA DE LIQUIDACIONES */}
+            {view === 'settlements' && (
+              <SettlementsView units={units} trips={trips} clients={clients} settlements={settlements} onSave={handleSaveItem} onDelete={handleDeleteItem} />
+            )}
+
             {view === 'expenses' && <ExpensesView expenses={expenses} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
             {view === 'reports' && <ReportsView units={units} trips={trips} expenses={expenses} fuel={fuel} />}
 
