@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query } from 'firebase/firestore';
 
 // Tipos
 import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad } from './types';
@@ -21,8 +21,6 @@ import { LoginView } from './pages/Login';
 
 // Componentes de UI
 import { Input } from './components/ui/Input';
-import { Button } from './components/ui/Button';
-import { DatabaseBackup } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -31,9 +29,6 @@ export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
   const [darkMode, setDarkMode] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
-  
-  // Mostrar el panel de migración temporalmente
-  const [showMigrator, setShowMigrator] = useState(true);
 
   // Estados de datos
   const [units, setUnits] = useState<TransportUnit[]>([]);
@@ -90,41 +85,6 @@ export default function App() {
     }
   };
 
-  // --- FUNCIÓN DE MIGRACIÓN CORREGIDA ---
-  const handleMigrateOldData = async () => {
-    const oldUid = window.prompt("Pega aquí el 'User UID' de tu cuenta anónima vieja (desde Firebase -> Authentication):");
-    if (!oldUid || oldUid.trim() === '') return;
-
-    if (!window.confirm("Esto copiará los datos de esa cuenta a la base global. ¿Continuar?")) return;
-
-    try {
-      const collections = ['units', 'clients', 'trips', 'expenses', 'fuel'];
-      let count = 0;
-      
-      for (const col of collections) {
-        // 1. Lee los datos de la ruta vieja: /users/{oldUid}/{colección}
-        const snap = await getDocs(query(collection(db, 'users', oldUid.trim(), col)));
-        
-        for (const documentSnap of snap.docs) {
-           // 2. Escribe los datos en la nueva ruta raíz: /{colección}
-           await setDoc(doc(db, col, documentSnap.id), documentSnap.data());
-           count++;
-        }
-      }
-      
-      if (count > 0) {
-        alert(`¡Migración Exitosa! Se recuperaron ${count} registros y ahora son públicos para la empresa.`);
-        setShowMigrator(false);
-      } else {
-        alert("No se encontraron datos para ese UID. Asegúrate de haber copiado el UID correcto.");
-      }
-      
-    } catch (err) {
-      console.error(err);
-      alert("Ocurrió un error. Revisa la consola (F12) para más detalles.");
-    }
-  };
-
   // Pantalla de carga
   if (loadingAuth) {
     return (
@@ -148,20 +108,6 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header darkMode={darkMode} setDarkMode={setDarkMode} setSidebarOpen={setSidebarOpen} user={user} />
         
-        {/* PANEL MIGRADOR */}
-        {showMigrator && (
-          <div className="bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 p-4 flex flex-col sm:flex-row gap-3 justify-between items-center text-sm z-10 shadow-inner">
-            <span className="text-blue-800 dark:text-blue-300 flex items-center gap-2">
-              <DatabaseBackup size={18} />
-              <strong>Herramienta de Recuperación:</strong> Pega el UID de tu cuenta anterior para pasar tus datos a la base global.
-            </span>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <Button variant="primary" onClick={handleMigrateOldData} className="w-full sm:w-auto">Recuperar Datos</Button>
-              <Button variant="ghost" onClick={() => setShowMigrator(false)} className="w-full sm:w-auto">Ocultar</Button>
-            </div>
-          </div>
-        )}
-
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
             
