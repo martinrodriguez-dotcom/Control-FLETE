@@ -1,4 +1,4 @@
-export type ViewState = 'dashboard' | 'units' | 'clients' | 'trips' | 'expenses' | 'fuel' | 'reports';
+export type ViewState = 'dashboard' | 'units' | 'clients' | 'trips' | 'expenses' | 'fuel' | 'reports' | 'settlements';
 
 export interface BaseEntity { id: string; createdAt: number; }
 
@@ -23,4 +23,12 @@ export interface Expense extends BaseEntity {
 
 export interface FuelLoad extends BaseEntity {
   date: string; unitId: string; liters: number; pricePerLiter: number; total: number; station: string; currentKm: number;
+}
+
+export interface Settlement extends BaseEntity {
+  date: string;
+  unitId: string;
+  tripIds: string[]; // Guardamos los IDs de los viajes que se liquidaron aquí
+  totalAmount: number;
+  notes: string;
 }
