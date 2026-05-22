@@ -4,7 +4,6 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'fire
 import { Truck, Mail, Lock, AlertCircle } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 
 export const LoginView: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
