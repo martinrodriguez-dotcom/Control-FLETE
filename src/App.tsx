@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { auth, db } from './lib/firebase';
-import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query } from 'firebase/firestore';
 
 // Tipos
@@ -17,6 +17,7 @@ import { TripsView } from './pages/Trips';
 import { SimpleCRUDView } from './pages/SimpleCRUD';
 import { ExpensesView } from './pages/Expenses';
 import { ReportsView } from './pages/Reports';
+import { LoginView } from './pages/Login'; // <-- IMPORTAMOS EL LOGIN
 
 // Componentes de UI
 import { Input } from './components/ui/Input';
@@ -36,10 +37,8 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [fuel, setFuel] = useState<FuelLoad[]>([]);
 
-  // Efecto: Manejo de Autenticación
+  // Efecto: Manejo de Autenticación (Escucha si hay sesión iniciada)
   useEffect(() => {
-    signInAnonymously(auth).catch(err => console.error("Error Auth:", err));
-    
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoadingAuth(false);
@@ -47,7 +46,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Efecto: Sincronización en tiempo real con Firestore
+  // Efecto: Sincronización en tiempo real con Firestore (Solo si hay usuario)
   useEffect(() => {
     if (!user) return;
     
@@ -86,7 +85,7 @@ export default function App() {
     }
   };
 
-  // Pantalla de carga mientras se conecta a Firebase
+  // Pantalla de carga mientras verifica la sesión
   if (loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
@@ -95,6 +94,12 @@ export default function App() {
     );
   }
 
+  // SI NO HAY USUARIO AUTENTICADO, MUESTRA LA PANTALLA DE LOGIN
+  if (!user) {
+    return <LoginView />;
+  }
+
+  // SI HAY USUARIO, MUESTRA LA APP COMPLETA
   return (
     <div className={`min-h-screen flex ${darkMode ? 'dark bg-slate-900 text-white' : 'bg-slate-50 text-slate-900'}`}>
       
@@ -108,7 +113,7 @@ export default function App() {
             
             {/* VISTAS ESPECÍFICAS */}
             {view === 'dashboard' && (
-              <DashboardView trips={trips} expenses={expenses} fuel={fuel} units={units} />
+              <DashboardView trips={trips} expenses={expenses} fuel={fuel} units={units} clients={clients} />
             )}
             
             {view === 'units' && (
@@ -162,9 +167,9 @@ export default function App() {
                 onSave={handleSaveItem}
                 onDelete={handleDeleteItem}
                 fields={[
-                  {key:'date', label:'Fecha', format: (val) => new Date(val).toLocaleDateString('es-AR')}, 
+                  {key:'date', label:'Fecha', format: (val: string) => new Date(val).toLocaleDateString('es-AR', { timeZone: 'UTC' })}, 
                   {key:'liters', label:'Litros'}, 
-                  {key:'total', label:'Total', format: (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val)},
+                  {key:'total', label:'Total', format: (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val)},
                   {key:'station', label:'Estación'}
                 ]}
                 FormContent={
