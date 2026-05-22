@@ -14,6 +14,7 @@ interface InputProps {
   onChange?: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   required?: boolean;
   options?: Option[];
+  placeholder?: string;
 }
 
 export const Input: React.FC<InputProps> = ({ 
@@ -24,7 +25,8 @@ export const Input: React.FC<InputProps> = ({
   defaultValue, 
   onChange, 
   required, 
-  options 
+  options,
+  placeholder
 }) => {
   const baseClasses = "w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 py-2 px-3 border transition-colors";
 
@@ -54,7 +56,8 @@ export const Input: React.FC<InputProps> = ({
           value={value} 
           defaultValue={defaultValue} 
           onChange={onChange} 
-          required={required} 
+          required={required}
+          placeholder={placeholder}
           rows={3} 
           className={baseClasses} 
         />
@@ -65,7 +68,8 @@ export const Input: React.FC<InputProps> = ({
           value={value} 
           defaultValue={defaultValue} 
           onChange={onChange} 
-          required={required} 
+          required={required}
+          placeholder={placeholder}
           className={baseClasses} 
         />
       )}
