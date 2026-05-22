@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query } from 'firebase/firestore';
 
 // Tipos
 import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad } from './types';
@@ -21,7 +21,6 @@ import { LoginView } from './pages/Login';
 
 // Componentes de UI
 import { Input } from './components/ui/Input';
-import { Button } from './components/ui/Button';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -30,9 +29,6 @@ export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
   const [darkMode, setDarkMode] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
-  
-  // Estado para mostrar el cartel de migración temporal
-  const [showMigrator, setShowMigrator] = useState(true);
 
   // Estados de datos
   const [units, setUnits] = useState<TransportUnit[]>([]);
@@ -50,7 +46,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Efecto: Sincronización en tiempo real con Firestore (MÚLTIPLES USUARIOS COMPARTIDOS)
+  // Efecto: Sincronización en tiempo real con Firestore (GLOBAL Y COMPARTIDO)
   useEffect(() => {
     if (!user) return;
     
@@ -59,8 +55,8 @@ export default function App() {
     const unsubs: any[] = [];
 
     collections.forEach(colName => {
-      // AHORA APUNTA A LA RUTA COMPARTIDA DE LA EMPRESA (YA NO ES POR USUARIO)
-      const q = query(collection(db, 'artifacts', 'logisflow', 'public', 'data', colName));
+      // APUNTA DIRECTAMENTE A LA RAÍZ DE LA BASE DE DATOS (COMPARTIDO PARA TODA LA EMPRESA)
+      const q = query(collection(db, colName));
       const unsub = onSnapshot(q, 
         (snap) => {
           const data = snap.docs.map(doc => doc.data() as any).sort((a, b) => b.createdAt - a.createdAt);
@@ -74,45 +70,18 @@ export default function App() {
     return () => unsubs.forEach(u => u());
   }, [user]);
 
-  // Funciones genéricas para guardar y eliminar en la base de datos compartida
+  // Funciones genéricas para guardar y eliminar (BASE DE DATOS GLOBAL)
   const handleSaveItem = async (collectionName: string, data: any) => {
     if (!user) return;
     const id = data.id || crypto.randomUUID();
     const payload = { ...data, id, createdAt: data.createdAt || Date.now() };
-    await setDoc(doc(db, 'artifacts', 'logisflow', 'public', 'data', collectionName, id), payload);
+    await setDoc(doc(db, collectionName, id), payload);
   };
 
   const handleDeleteItem = async (collectionName: string, id: string) => {
     if (!user) return;
     if (window.confirm('¿Estás seguro de eliminar este registro? Esta acción no se puede deshacer.')) {
-      await deleteDoc(doc(db, 'artifacts', 'logisflow', 'public', 'data', collectionName, id));
-    }
-  };
-
-  // Función Mágica para recuperar los datos viejos
-  const handleMigrateOldData = async () => {
-    const oldUid = window.prompt("Ve a Firebase -> Authentication -> Users. Copia el 'User UID' de tu cuenta anónima vieja y pégalo aquí:");
-    if (!oldUid) return;
-
-    if (!window.confirm("¿Importar datos a la base de datos compartida?")) return;
-
-    try {
-      const collections = ['units', 'clients', 'trips', 'expenses', 'fuel'];
-      let count = 0;
-      for (const col of collections) {
-        // Lee los datos de tu usuario viejo
-        const snap = await getDocs(query(collection(db, 'users', oldUid.trim(), col)));
-        for (const documentSnap of snap.docs) {
-           // Los guarda en la nueva ruta compartida
-           await setDoc(doc(db, 'artifacts', 'logisflow', 'public', 'data', col, documentSnap.id), documentSnap.data());
-           count++;
-        }
-      }
-      alert(`¡Migración Exitosa! Se recuperaron ${count} registros. Ahora son visibles para cualquier usuario de tu empresa.`);
-      setShowMigrator(false); // Oculta el cartel
-    } catch (err) {
-      console.error(err);
-      alert("Ocurrió un error. Asegúrate de haber pegado el UID correctamente y de haber actualizado las Reglas de Firebase.");
+      await deleteDoc(doc(db, collectionName, id));
     }
   };
 
@@ -139,19 +108,6 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header darkMode={darkMode} setDarkMode={setDarkMode} setSidebarOpen={setSidebarOpen} user={user} />
         
-        {/* Cartel temporal de recuperación de datos */}
-        {showMigrator && (
-          <div className="bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 p-4 flex flex-col sm:flex-row gap-3 justify-between items-center text-sm z-10">
-            <span className="text-blue-800 dark:text-blue-300">
-              <strong>Modo Multiusuario Activado:</strong> Si te faltan los datos que cargaste ayer, puedes recuperarlos con un clic.
-            </span>
-            <div className="flex gap-2">
-              <Button variant="primary" onClick={handleMigrateOldData}>Recuperar mis datos</Button>
-              <Button variant="ghost" onClick={() => setShowMigrator(false)}>Ocultar</Button>
-            </div>
-          </div>
-        )}
-
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
             
