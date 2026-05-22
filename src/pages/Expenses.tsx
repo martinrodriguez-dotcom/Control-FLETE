@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Receipt, Truck, ChevronDown, ChevronUp, Calendar, DollarSign, Activity } from 'lucide-react';
+import { Plus, Edit2, Trash2, Receipt, Truck, ChevronDown, ChevronUp, DollarSign, Activity } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
