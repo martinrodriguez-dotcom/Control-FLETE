@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Truck, Users, Map, Receipt, Fuel, PieChart, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Truck, Users, Map, Receipt, Fuel, PieChart, ChevronRight, ClipboardCheck } from 'lucide-react';
 import { ViewState } from '../../types';
 
 interface SidebarProps {
@@ -11,10 +11,11 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen }) => {
   const navItems = [
-    { id: 'dashboard', label: 'Panel', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'units', label: 'Unidades', icon: Truck },
     { id: 'clients', label: 'Clientes', icon: Users },
     { id: 'trips', label: 'Viajes', icon: Map },
+    { id: 'settlements', label: 'Liquidaciones', icon: ClipboardCheck },
     { id: 'expenses', label: 'Gastos', icon: Receipt },
     { id: 'fuel', label: 'Combustible', icon: Fuel },
     { id: 'reports', label: 'Reportes', icon: PieChart },
@@ -38,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen
                 key={item.id}
                 onClick={() => { 
                   setView(item.id as ViewState); 
-                  setOpen(false); // Cierra el sidebar en móviles al seleccionar
+                  setOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
                   isActive 
@@ -55,12 +56,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen
         </nav>
       </aside>
       
-      {/* Overlay para móviles */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 z-30 md:hidden" 
-          onClick={() => setOpen(false)} 
-        />
+        <div className="fixed inset-0 bg-slate-900/50 z-30 md:hidden" onClick={() => setOpen(false)} />
       )}
     </>
   );
