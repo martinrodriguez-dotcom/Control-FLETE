@@ -23,14 +23,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen
 
   return (
     <>
-      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static`}>
-        <div className="h-16 flex items-center px-6 border-b border-slate-200 dark:border-slate-700">
-          <Truck className="text-blue-600 mr-2" size={24} />
-          <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Logis<span className="text-blue-600">Flow</span>
+      {/* Sidebar contenedor */}
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static flex flex-col`}>
+        
+        {/* LOGO CORPORATIVO SII PALLETS */}
+        <div className="h-16 flex items-center px-6 border-b border-slate-200 dark:border-slate-700 shrink-0">
+          <Truck className="text-blue-600 mr-2.5" size={26} strokeWidth={2.5} />
+          <span className="text-2xl font-black tracking-tight">
+            <span className="text-blue-600">SII</span>
+            <span className="text-slate-900 dark:text-white ml-1.5">PALLETS</span>
           </span>
         </div>
-        <nav className="p-4 space-y-1">
+
+        {/* Navegación */}
+        <nav className="p-4 space-y-1 overflow-y-auto flex-1">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = view === item.id;
@@ -41,23 +47,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen
                   setView(item.id as ViewState); 
                   setOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
                   isActive 
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' 
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 shadow-sm' 
                     : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                 }`}
               >
-                <Icon size={20} />
+                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
                 {item.label}
-                {isActive && <ChevronRight size={16} className="ml-auto" />}
+                {isActive && <ChevronRight size={16} className="ml-auto opacity-70" />}
               </button>
             );
           })}
         </nav>
       </aside>
       
+      {/* Overlay para móviles */}
       {isOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 z-30 md:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 bg-slate-900/50 z-30 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setOpen(false)} />
       )}
     </>
   );
