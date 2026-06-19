@@ -10,6 +10,7 @@ import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad, Settlement, 
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { Button } from './components/ui/Button';
+import { Input } from './components/ui/Input'; // <-- ¡Aquí está la corrección clave!
 import { ShieldAlert } from 'lucide-react';
 
 // Vistas
@@ -22,7 +23,7 @@ import { ReportsView } from './pages/Reports';
 import { MaintenanceView } from './pages/Maintenance';
 import { SimpleCRUDView } from './pages/SimpleCRUD';
 import { LoginView } from './pages/Login';
-import { AdminView } from './pages/Admin'; // <-- Nueva vista
+import { AdminView } from './pages/Admin';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -60,7 +61,7 @@ export default function App() {
           await setDoc(docRef, {
             id: u.uid,
             email: u.email,
-            role: isFirstUser ? 'administrador' : 'operario', // El primero es Admin, el resto Operario por defecto
+            role: isFirstUser ? 'administrador' : 'operario',
             name: u.displayName || u.email.split('@')[0],
             isActive: true,
             createdAt: Date.now()
