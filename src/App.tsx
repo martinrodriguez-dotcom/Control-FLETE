@@ -10,7 +10,7 @@ import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad, Settlement, 
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { Button } from './components/ui/Button';
-import { Input } from './components/ui/Input'; // <-- ¡Aquí está la corrección clave!
+import { Input } from './components/ui/Input';
 import { ShieldAlert } from 'lucide-react';
 
 // Vistas
@@ -58,10 +58,13 @@ export default function App() {
           const profilesSnap = await getDocs(collection(db, 'user_profiles'));
           const isFirstUser = profilesSnap.empty;
 
+          // REGLA MAESTRA: Si el correo es el oficial, O es el primer usuario, es Admin.
+          const assignedRole = (isFirstUser || u.email === 'admin@siipalletsflete.com') ? 'administrador' : 'operario';
+
           await setDoc(docRef, {
             id: u.uid,
             email: u.email,
-            role: isFirstUser ? 'administrador' : 'operario',
+            role: assignedRole,
             name: u.displayName || u.email.split('@')[0],
             isActive: true,
             createdAt: Date.now()
