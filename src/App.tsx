@@ -4,7 +4,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query } from 'firebase/firestore';
 
 // Tipos
-import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad, Settlement } from './types';
+import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad, Settlement, ServiceRecord } from './types';
 
 // Componentes de Layout
 import { Sidebar } from './components/layout/Sidebar';
@@ -15,9 +15,10 @@ import { DashboardView } from './pages/Dashboard';
 import { UnitsView } from './pages/Units';
 import { TripsView } from './pages/Trips';
 import { SettlementsView } from './pages/Settlements';
-import { SimpleCRUDView } from './pages/SimpleCRUD';
 import { ExpensesView } from './pages/Expenses';
 import { ReportsView } from './pages/Reports';
+import { MaintenanceView } from './pages/Maintenance';
+import { SimpleCRUDView } from './pages/SimpleCRUD';
 import { LoginView } from './pages/Login';
 
 // Componentes de UI
@@ -38,6 +39,7 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [fuel, setFuel] = useState<FuelLoad[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [services, setServices] = useState<ServiceRecord[]>([]); // <-- Nuevo Estado para Mantenimiento
 
   // Efecto: Manejo de Autenticación
   useEffect(() => {
@@ -52,15 +54,16 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     
-    // Lista de colecciones a descargar desde Firebase
-    const collections = ['units', 'clients', 'trips', 'expenses', 'fuel', 'settlements'];
+    // Lista de colecciones a descargar desde Firebase (agregamos 'services')
+    const collections = ['units', 'clients', 'trips', 'expenses', 'fuel', 'settlements', 'services'];
     const setters = { 
       units: setUnits, 
       clients: setClients, 
       trips: setTrips, 
       expenses: setExpenses, 
       fuel: setFuel,
-      settlements: setSettlements 
+      settlements: setSettlements,
+      services: setServices
     };
     const unsubs: any[] = [];
 
@@ -124,13 +127,21 @@ export default function App() {
             {view === 'dashboard' && <DashboardView trips={trips} expenses={expenses} fuel={fuel} units={units} clients={clients} />}
             {view === 'units' && <UnitsView units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
             {view === 'trips' && <TripsView trips={trips} clients={clients} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
+            {view === 'settlements' && <SettlementsView units={units} trips={trips} clients={clients} settlements={settlements} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
+            {view === 'expenses' && <ExpensesView expenses={expenses} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
             
-            {/* VISTA DE LIQUIDACIONES */}
-            {view === 'settlements' && (
-              <SettlementsView units={units} trips={trips} clients={clients} settlements={settlements} onSave={handleSaveItem} onDelete={handleDeleteItem} />
+            {/* NUEVA VISTA DE MANTENIMIENTO */}
+            {view === 'maintenance' && (
+              <MaintenanceView 
+                units={units} 
+                services={services} 
+                fuel={fuel} 
+                currentUserEmail={user.email || 'usuario@desconocido.com'}
+                onSave={handleSaveItem} 
+                onDelete={handleDeleteItem} 
+              />
             )}
 
-            {view === 'expenses' && <ExpensesView expenses={expenses} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
             {view === 'reports' && <ReportsView units={units} trips={trips} expenses={expenses} fuel={fuel} />}
 
             {view === 'clients' && (
