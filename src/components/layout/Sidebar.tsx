@@ -1,16 +1,19 @@
 import React from 'react';
-import { LayoutDashboard, Truck, Users, Map, Receipt, Fuel, PieChart, ChevronRight, ClipboardCheck, Wrench } from 'lucide-react';
-import { ViewState } from '../../types';
+import { LayoutDashboard, Truck, Users, Map, Receipt, Fuel, PieChart, ChevronRight, ClipboardCheck, Wrench, Shield } from 'lucide-react';
+import { ViewState, UserRole } from '../../types';
 
 interface SidebarProps {
   view: ViewState;
   setView: (view: ViewState) => void;
   isOpen: boolean;
   setOpen: (isOpen: boolean) => void;
+  userRole: UserRole; // <-- Agregamos el rol para filtrar el menú
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen }) => {
-  const navItems = [
+export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen, userRole }) => {
+  
+  // Todas las opciones posibles
+  const allNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'units', label: 'Unidades', icon: Truck },
     { id: 'clients', label: 'Clientes', icon: Users },
@@ -20,14 +23,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen
     { id: 'fuel', label: 'Combustible', icon: Fuel },
     { id: 'maintenance', label: 'Mantenimiento', icon: Wrench },
     { id: 'reports', label: 'Reportes', icon: PieChart },
+    { id: 'admin', label: 'Panel Admin', icon: Shield },
   ];
+
+  // Filtramos el menú según el rol del usuario
+  const navItems = allNavItems.filter(item => {
+    if (userRole === 'operario') {
+      return item.id === 'maintenance'; // Operario SOLO ve mantenimiento
+    }
+    if (userRole === 'encargado') {
+      return item.id !== 'admin'; // Encargado ve TODO menos el panel de seguridad
+    }
+    return true; // Administrador ve TODO
+  });
 
   return (
     <>
-      {/* Sidebar contenedor */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static flex flex-col`}>
         
-        {/* LOGO CORPORATIVO SII PALLETS */}
         <div className="h-16 flex items-center px-6 border-b border-slate-200 dark:border-slate-700 shrink-0">
           <Truck className="text-blue-600 mr-2.5" size={26} strokeWidth={2.5} />
           <span className="text-2xl font-black tracking-tight">
@@ -36,7 +49,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen
           </span>
         </div>
 
-        {/* Navegación */}
         <nav className="p-4 space-y-1 overflow-y-auto flex-1">
           {navItems.map(item => {
             const Icon = item.icon;
@@ -63,7 +75,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen
         </nav>
       </aside>
       
-      {/* Overlay para móviles */}
       {isOpen && (
         <div className="fixed inset-0 bg-slate-900/50 z-30 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setOpen(false)} />
       )}
