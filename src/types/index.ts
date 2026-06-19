@@ -9,20 +9,25 @@ export interface BaseEntity {
   userEmail?: string; 
 }
 
-// NUEVO: Agregamos el "status" para manejar la lista de espera
 export interface UserProfile extends BaseEntity {
   email: string;
   role: UserRole;
   status: UserStatus; 
   name: string;
-  isActive?: boolean; // Lo dejamos opcional para no romper los usuarios que ya creaste
+  isActive?: boolean;
 }
 
 export interface TransportUnit extends BaseEntity {
   name: string; plate: string; brand: string; model: string; year: number;
-  type: 'camion' | 'semirremolque'; insuranceCompany: string; insuranceExpiry: string;
+  type: 'camion' | 'semirremolque' | 'tanque'; // <-- NUEVO TIPO: tanque
+  insuranceCompany: string; insuranceExpiry: string;
   status: 'activo' | 'inactivo'; notes: string;
   currentKm?: number; 
+  
+  // NUEVOS CAMPOS EXCLUSIVOS PARA TANQUES
+  fuelCapacity?: number; // Capacidad total en litros
+  fuelAlertPercentage?: number; // Ej: 15 (Avisa cuando quede menos del 15%)
+  currentFuel?: number; // Litros actuales en tiempo real
 }
 
 export interface Client extends BaseEntity {
@@ -40,6 +45,7 @@ export interface Expense extends BaseEntity {
 
 export interface FuelLoad extends BaseEntity {
   date: string; unitId: string; liters: number; pricePerLiter: number; total: number; station: string; currentKm: number;
+  sourceTankId?: string; // NUEVO: Para saber de qué tanque interno salió el gasoil
 }
 
 export interface Settlement extends BaseEntity {
