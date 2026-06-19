@@ -1,6 +1,7 @@
 export type ViewState = 'dashboard' | 'units' | 'clients' | 'trips' | 'expenses' | 'fuel' | 'reports' | 'settlements' | 'maintenance' | 'admin';
 
 export type UserRole = 'administrador' | 'encargado' | 'operario';
+export type UserStatus = 'pendiente' | 'activo' | 'bloqueado';
 
 export interface BaseEntity { 
   id: string; 
@@ -8,11 +9,13 @@ export interface BaseEntity {
   userEmail?: string; 
 }
 
+// NUEVO: Agregamos el "status" para manejar la lista de espera
 export interface UserProfile extends BaseEntity {
   email: string;
   role: UserRole;
+  status: UserStatus; 
   name: string;
-  isActive: boolean;
+  isActive?: boolean; // Lo dejamos opcional para no romper los usuarios que ya creaste
 }
 
 export interface TransportUnit extends BaseEntity {
