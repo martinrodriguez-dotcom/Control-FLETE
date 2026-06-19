@@ -58,7 +58,6 @@ export default function App() {
 
           const isMaster = u.email === 'admin@siipalletsflete.com';
           const assignedRole = (isFirstUser || isMaster) ? 'administrador' : 'operario';
-          // NUEVO: Solo el Admin principal entra directo. Los demás van a "pendiente".
           const assignedStatus = (isFirstUser || isMaster) ? 'activo' : 'pendiente';
 
           await setDoc(docRef, {
@@ -102,8 +101,6 @@ export default function App() {
   // --- LÓGICA DE SEGURIDAD Y ROLES ---
   const currentUserProfile = userProfiles.find(p => p.email === user?.email);
   const userRole: UserRole = currentUserProfile?.role || 'operario';
-  
-  // Soporte para usuarios viejos (que tenían isActive) y los nuevos (con status)
   const userStatus: UserStatus = currentUserProfile?.status || (currentUserProfile?.isActive === false ? 'bloqueado' : currentUserProfile?.isActive === true ? 'activo' : 'pendiente');
 
   useEffect(() => {
@@ -201,7 +198,10 @@ export default function App() {
                 {view === 'trips' && <TripsView trips={trips} clients={clients} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
                 {view === 'settlements' && <SettlementsView units={units} trips={trips} clients={clients} settlements={settlements} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
                 {view === 'expenses' && <ExpensesView expenses={expenses} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
-                {view === 'reports' && <ReportsView units={units} trips={trips} expenses={expenses} fuel={fuel} />}
+                
+                {/* VISTA DE REPORTES (Aquí inyectamos la variable 'services') */}
+                {view === 'reports' && <ReportsView units={units} trips={trips} expenses={expenses} fuel={fuel} services={services} />}
+                
                 {view === 'clients' && (
                   <SimpleCRUDView 
                     title="Clientes" collectionName="clients" data={clients} onSave={handleSaveItem} onDelete={handleDeleteItem}
