@@ -1,378 +1,303 @@
 import React, { useState } from 'react';
-import { Download, Printer, FileText, Calendar, ArrowLeft, TrendingUp, TrendingDown, Truck, Activity } from 'lucide-react';
+import { 
+  PieChart, TrendingUp, TrendingDown, Truck, ChevronDown, ChevronUp, 
+  Droplets, Receipt, Settings, Map, Activity, DollarSign, BarChart3 
+} from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { TransportUnit, Trip, Expense, FuelLoad } from '../types';
+import { TransportUnit, Trip, Expense, FuelLoad, ServiceRecord } from '../types';
 
 interface ReportsProps {
-  units: TransportUnit[];
-  trips: Trip[];
-  expenses: Expense[];
-  fuel: FuelLoad[];
+  units?: TransportUnit[];
+  trips?: Trip[];
+  expenses?: Expense[];
+  fuel?: FuelLoad[];
+  services?: ServiceRecord[];
 }
 
-export const ReportsView: React.FC<ReportsProps> = ({ units, trips, expenses, fuel }) => {
-  // Estados para fechas y modos de vista
-  const today = new Date();
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const toYMD = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+export const ReportsView: React.FC<ReportsProps> = ({ 
+  units = [], trips = [], expenses = [], fuel = [], services = [] 
+}) => {
+  // Controles para abrir y cerrar (Acordeones)
+  const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
+  const toggleUnit = (unitId: string) => {
+    setExpandedUnits(prev => ({ ...prev, [unitId]: !prev[unitId] }));
   };
 
-  const [dateMode, setDateMode] = useState<'historico' | 'rango'>('historico');
-  const [startDate, setStartDate] = useState(toYMD(startOfMonth));
-  const [endDate, setEndDate] = useState(toYMD(today));
-  
-  // Modos de navegación: 'tarjetas' (pantallazo) o 'detallado'
-  const [viewMode, setViewMode] = useState<'tarjetas' | 'detallado'>('tarjetas');
-  const [selectedUnit, setSelectedUnit] = useState<string>('all');
-
-  const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' });
-
-  // 1. Filtrar los datos globales según el modo de fecha (Histórico ignora las fechas)
-  const activeTrips = dateMode === 'historico' ? trips : trips.filter(t => t.date >= startDate && t.date <= endDate);
-  const activeExpenses = dateMode === 'historico' ? expenses : expenses.filter(e => e.date >= startDate && e.date <= endDate);
-  const activeFuel = dateMode === 'historico' ? fuel : fuel.filter(f => f.date >= startDate && f.date <= endDate);
-
-  // 2. Calcular la data consolidada por cada unidad
-  const reportData = units
-    .filter(u => selectedUnit === 'all' || u.id === selectedUnit)
-    .map(unit => {
-      const uTrips = activeTrips.filter(t => t.unitId === unit.id);
-      const uExpenses = activeExpenses.filter(e => e.unitId === unit.id);
-      const uFuel = activeFuel.filter(f => f.unitId === unit.id);
-
-      const totalRevenue = uTrips.reduce((sum, t) => sum + Number(t.value), 0);
-      const totalExpenses = uExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-      const totalFuel = uFuel.reduce((sum, f) => sum + Number(f.total), 0);
-      const netProfit = totalRevenue - totalExpenses - totalFuel;
-      
-      const margin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
-
-      return {
-        ...unit,
-        totalRevenue,
-        totalExpenses,
-        totalFuel,
-        netProfit,
-        margin,
-        tripsCount: uTrips.length,
-        details: { trips: uTrips, expenses: uExpenses, fuel: uFuel }
-      };
-    }).sort((a, b) => b.netProfit - a.netProfit);
-
-  // Acción: Ver Detalle de un camión específico
-  const handleVerDetalle = (unitId: string) => {
-    setSelectedUnit(unitId);
-    setViewMode('detallado');
+  const toggleCategory = (key: string) => {
+    setExpandedCategories(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Acción: Volver al pantallazo general
-  const handleVolver = () => {
-    setSelectedUnit('all');
-    setViewMode('tarjetas');
+  // Funciones para darle formato lindo a los números y fechas
+  const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val || 0);
+  const formatNumber = (val: number) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(val || 0);
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    try { return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); } catch { return dateStr; }
   };
 
-  // Función nativa para imprimir
-  const handlePrint = () => window.print();
-
-  // Exportar a CSV
-  const handleExportCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    if (viewMode === 'tarjetas') {
-      csvContent += "Unidad,Patente,Viajes,Ingresos Brutos,Gastos Operativos,Combustible,Ganancia Neta,Margen(%)\n";
-      reportData.forEach(row => {
-        csvContent += `"${row.name}","${row.plate}",${row.tripsCount},${row.totalRevenue},${row.totalExpenses},${row.totalFuel},${row.netProfit},${row.margin}%\n`;
-      });
-    } else {
-      csvContent += "Unidad,Fecha,Tipo,Detalle,Monto\n";
-      reportData.forEach(row => {
-        row.details.trips.forEach(t => csvContent += `"${row.name}",${t.date},Viaje,"${t.origin} a ${t.destination}",${t.value}\n`);
-        row.details.expenses.forEach(e => csvContent += `"${row.name}",${e.date},Gasto,"${e.category} - ${e.description}",-${e.amount}\n`);
-        row.details.fuel.forEach(f => csvContent += `"${row.name}",${f.date},Combustible,"${f.station} - ${f.liters}L",-${f.total}\n`);
-      });
-    }
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Reporte_LogisFlow_${dateMode}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // --- CÁLCULOS GLOBALES DE TODA LA FLOTA ---
+  const globalRevenue = trips.reduce((sum, t) => sum + Number(t.value || 0), 0);
+  const globalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const globalFuelCost = fuel.reduce((sum, f) => sum + Number(f.total || 0), 0);
+  const globalTotalCosts = globalExpenses + globalFuelCost;
+  const globalNetProfit = globalRevenue - globalTotalCosts;
 
   return (
-    <div className="space-y-6 print:space-y-4 print:m-0 print:p-0 print:bg-white">
+    <div className="space-y-6">
       
-      {/* CABECERA */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
+      {/* TÍTULO */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Activity className="text-blue-600" />
-            Balance y Rentabilidad
+            <BarChart3 className="text-blue-600" /> Inteligencia de Negocio
           </h2>
-          <p className="text-slate-500 dark:text-slate-400">
-            {dateMode === 'historico' ? 'Análisis de rendimiento histórico de toda la flota' : 'Análisis por rango de fechas seleccionado'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {viewMode === 'detallado' && (
-            <Button variant="secondary" icon={ArrowLeft} onClick={handleVolver}>Volver al Resumen</Button>
-          )}
-          <Button variant="secondary" icon={Printer} onClick={handlePrint}>Imprimir</Button>
-          <Button icon={Download} onClick={handleExportCSV}>Exportar</Button>
+          <p className="text-slate-500 dark:text-slate-400">Análisis de rentabilidad, costos y rendimiento por unidad</p>
         </div>
       </div>
 
-      {/* Título de Impresión */}
-      <div className="hidden print:block mb-6 border-b-2 border-black pb-2">
-        <h1 className="text-2xl font-bold text-slate-900">Balance LogisFlow - {viewMode === 'tarjetas' ? 'Resumen General' : 'Detalle de Unidad'}</h1>
-        <p className="text-slate-600">
-          Período: {dateMode === 'historico' ? 'Histórico Total (Desde el origen)' : `${formatDate(startDate)} al ${formatDate(endDate)}`}
-        </p>
-      </div>
-
-      {/* BARRA DE FILTROS (Oculta en modo detallado para enfocarse en la info y oculta al imprimir) */}
-      {viewMode === 'tarjetas' && (
-        <Card className="print:hidden">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            
-            {/* Toggle Histórico / Rango */}
-            <div className="w-full md:w-auto bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 flex">
-              <button
-                onClick={() => setDateMode('historico')}
-                className={`flex-1 flex items-center justify-center gap-2 px-6 py-2 text-sm font-medium rounded-md transition-all ${dateMode === 'historico' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-              >
-                <Activity size={16} /> Histórico Total
-              </button>
-              <button
-                onClick={() => setDateMode('rango')}
-                className={`flex-1 flex items-center justify-center gap-2 px-6 py-2 text-sm font-medium rounded-md transition-all ${dateMode === 'rango' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-              >
-                <Calendar size={16} /> Buscar por Fecha
-              </button>
-            </div>
-
-            {/* Inputs de fecha (solo si modo es rango) */}
-            {dateMode === 'rango' && (
-              <div className="flex items-center gap-4 w-full md:w-auto animate-in fade-in slide-in-from-left-4">
-                <Input label="Desde" type="date" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} />
-                <Input label="Hasta" type="date" value={endDate} onChange={(e: any) => setEndDate(e.target.value)} />
-              </div>
-            )}
-
-          </div>
+      {/* TARJETAS DE RESUMEN GLOBAL (Para el dueño/admin) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-4 border-l-4 border-emerald-500 shadow-sm">
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2"><TrendingUp size={16}/> Ingresos Totales</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(globalRevenue)}</p>
         </Card>
-      )}
+        <Card className="p-4 border-l-4 border-red-500 shadow-sm">
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2"><TrendingDown size={16}/> Costos Operativos</p>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">-{formatCurrency(globalTotalCosts)}</p>
+        </Card>
+        <Card className="p-4 border-l-4 border-blue-500 shadow-sm">
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2"><PieChart size={16}/> Rentabilidad Neta</p>
+          <p className={`text-2xl font-bold mt-1 ${globalNetProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
+            {formatCurrency(globalNetProfit)}
+          </p>
+        </Card>
+        <Card className="p-4 border-l-4 border-orange-500 shadow-sm bg-orange-50/50 dark:bg-orange-900/10">
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2"><Activity size={16}/> Margen de Ganancia</p>
+          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
+            {globalRevenue > 0 ? formatNumber((globalNetProfit / globalRevenue) * 100) : 0}%
+          </p>
+        </Card>
+      </div>
 
+      {/* REPORTES POR UNIDAD (ACORDEONES) */}
+      <div className="space-y-4">
+        {units.map(unit => {
+          // Filtrar datos específicos de este camión
+          const uTrips = trips.filter(t => t.unitId === unit.id);
+          const uExpenses = expenses.filter(e => e.unitId === unit.id);
+          const uFuel = fuel.filter(f => f.unitId === unit.id);
+          const uServices = services.filter(s => s.unitId === unit.id && s.type === 'service').sort((a,b) => b.createdAt - a.createdAt);
 
-      {/* VISTA 1: PANTALLAZO GENERAL (TARJETAS) */}
-      {viewMode === 'tarjetas' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {reportData.map(unit => {
-            const isProfitable = unit.netProfit >= 0;
-            return (
-              <Card key={unit.id} className="flex flex-col relative overflow-hidden group print:break-inside-avoid print:border-black print:shadow-none">
-                {/* Banda de color superior según rentabilidad */}
-                <div className={`absolute top-0 left-0 right-0 h-1 ${isProfitable ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                
-                {/* Cabecera Tarjeta */}
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <Truck size={20} className="text-slate-400" />
-                      {unit.name}
-                    </h3>
-                    <p className="text-sm text-slate-500">{unit.plate} • {unit.brand}</p>
-                  </div>
-                  <div className={`px-2 py-1 rounded text-xs font-bold ${isProfitable ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-red-100 text-red-700 dark:bg-red-900/30'}`}>
-                    Margen: {unit.margin}%
-                  </div>
-                </div>
-
-                {/* Cuerpo Tarjeta (Métricas) */}
-                <div className="space-y-3 mb-6 flex-1">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-500">Ingresos Brutos:</span>
-                    <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(unit.totalRevenue)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-700 pb-2">
-                    <span className="text-red-500">Egresos (Gastos + Nafta):</span>
-                    <span className="font-medium text-red-600 dark:text-red-400">-{formatCurrency(unit.totalExpenses + unit.totalFuel)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-1">
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Balance Neto:</span>
-                    <span className={`text-xl font-bold flex items-center gap-1 ${isProfitable ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {isProfitable ? <TrendingUp size={18}/> : <TrendingDown size={18}/>}
-                      {formatCurrency(unit.netProfit)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 text-right">{unit.tripsCount} viajes registrados</p>
-                </div>
-
-                {/* Pie Tarjeta */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-700 print:hidden">
-                  <Button 
-                    variant="secondary" 
-                    className="w-full" 
-                    icon={FileText} 
-                    onClick={() => handleVerDetalle(unit.id)}
-                  >
-                    Ver Detalle Operativo
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
+          // Cálculos financieros del camión
+          const totalKm = uTrips.reduce((sum, t) => sum + Number(t.km || 0), 0);
+          const uRevenue = uTrips.reduce((sum, t) => sum + Number(t.value || 0), 0);
+          const uExpTotal = uExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+          const uFuelTotal = uFuel.reduce((sum, f) => sum + Number(f.total || 0), 0);
+          const uFuelLiters = uFuel.reduce((sum, f) => sum + Number(f.liters || 0), 0);
           
-          {reportData.length === 0 && (
-             <div className="col-span-full text-center py-10 text-slate-500">
-                No hay unidades registradas en el sistema o con datos en este período.
-             </div>
-          )}
-        </div>
-      )}
+          const uTotalCosts = uExpTotal + uFuelTotal;
+          const uNet = uRevenue - uTotalCosts;
+          
+          // Estadísticas Inteligentes
+          const kmPerLiter = uFuelLiters > 0 ? (totalKm / uFuelLiters) : 0;
+          const costPerKm = totalKm > 0 ? (uTotalCosts / totalKm) : 0;
+          const lastService = uServices.length > 0 ? uServices[0] : null;
 
-      {/* VISTA 2: DETALLADO (Despliegue del historial de la unidad) */}
-      {viewMode === 'detallado' && (
-        <div className="space-y-8 print:space-y-6">
-          {reportData.map(unit => {
-            if (unit.tripsCount === 0 && unit.details.expenses.length === 0 && unit.details.fuel.length === 0) {
-              return (
-                <Card key={unit.id} className="text-center py-10 text-slate-500">
-                  La unidad <strong>{unit.name}</strong> no tiene movimientos registrados.
-                </Card>
-              );
-            }
+          // Magia: Agrupar gastos por categoría automáticamente
+          const expensesByCategory = uExpenses.reduce((acc, curr) => {
+            const cat = curr.category || 'otros';
+            if (!acc[cat]) acc[cat] = { total: 0, items: [] };
+            acc[cat].total += Number(curr.amount);
+            acc[cat].items.push(curr);
+            return acc;
+          }, {} as Record<string, { total: number, items: Expense[] }>);
 
-            return (
-              <Card key={unit.id} className="print:shadow-none print:border print:border-slate-300 print:p-4 break-inside-avoid shadow-lg border-blue-100 dark:border-blue-900/50">
-                
-                {/* Cabecera de la Unidad en el Detalle */}
-                <div className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 print:border-black">
+          const isUnitOpen = !!expandedUnits[unit.id];
+
+          return (
+            <Card key={unit.id} className="p-0 overflow-hidden shadow-sm transition-all border border-slate-200 dark:border-slate-700">
+              
+              {/* CABECERA DEL CAMIÓN (Clickeable) */}
+              <button 
+                onClick={() => toggleUnit(unit.id)}
+                className="w-full flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3 mb-3 sm:mb-0">
+                  <div className={`p-3 rounded-lg ${uNet >= 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40' : 'bg-red-100 text-red-600 dark:bg-red-900/40'}`}>
+                    <Truck size={24} />
+                  </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white print:text-black flex items-center gap-2">
-                      <Truck className="text-blue-600" />
-                      {unit.name}
-                    </h3>
-                    <p className="text-slate-500 print:text-slate-800 mt-1">Patente: {unit.plate} | Tipo: {unit.type}</p>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto text-right">
-                    <p className="text-sm text-slate-500 print:text-slate-800 uppercase font-semibold mb-1">Amortización / Resultado Neto</p>
-                    <p className={`text-3xl font-bold print:text-black ${unit.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {formatCurrency(unit.netProfit)}
-                    </p>
+                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">{unit.name}</h3>
+                    <p className="text-sm text-slate-500 font-mono">{unit.plate}</p>
                   </div>
                 </div>
 
-                {/* Sub-Tablas del Detalle */}
-                <div className="space-y-6">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-8 w-full sm:w-auto ml-12 sm:ml-0">
+                  <div>
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Ingresos</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{formatCurrency(uRevenue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Egresos</p>
+                    <p className="font-semibold text-red-500">-{formatCurrency(uTotalCosts)}</p>
+                  </div>
+                  <div className="pr-4 border-r border-slate-200 dark:border-slate-700">
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Neto</p>
+                    <p className={`font-bold ${uNet >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(uNet)}</p>
+                  </div>
+                  <div className="text-slate-400 bg-slate-100 dark:bg-slate-700 p-1.5 rounded-md">
+                    {isUnitOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </div>
+                </div>
+              </button>
+
+              {/* CONTENIDO DESPLEGABLE DEL CAMIÓN */}
+              {isUnitOpen && (
+                <div className="border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2">
                   
-                  {/* Viajes */}
-                  {unit.details.trips.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 print:text-black bg-slate-100 dark:bg-slate-800 py-2 px-3 rounded">
-                        Ingresos: Historial de Viajes ({unit.tripsCount})
-                      </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left border border-slate-100 dark:border-slate-700 print:border-slate-300">
-                          <thead className="bg-slate-50 dark:bg-slate-800 print:bg-slate-100 text-slate-500">
-                            <tr>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300">Fecha</th>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300">Ruta (Origen - Destino)</th>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300">Estado</th>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300 text-right">Valor</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {unit.details.trips.map(t => (
-                              <tr key={t.id} className="border-t border-slate-100 dark:border-slate-700 print:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                <td className="px-3 py-2">{formatDate(t.date)}</td>
-                                <td className="px-3 py-2">{t.origin} a {t.destination} <span className="text-xs text-slate-400">({t.km}km)</span></td>
-                                <td className="px-3 py-2 capitalize">{t.paymentStatus}</td>
-                                <td className="px-3 py-2 text-right font-medium text-emerald-600 dark:text-emerald-400">+{formatCurrency(t.value)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                  {/* MINI-DASHBOARD DE ESTADÍSTICAS INTELIGENTES */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Map size={12}/> Recorrido (Est.)</p>
+                      <p className="font-bold text-slate-900 dark:text-white">{formatNumber(totalKm)} km</p>
                     </div>
-                  )}
+                    <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Droplets size={12}/> Consumo Prom.</p>
+                      <p className="font-bold text-blue-600 dark:text-blue-400">{formatNumber(kmPerLiter)} km/L</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><DollarSign size={12}/> Costo x Km</p>
+                      <p className="font-bold text-red-500">{formatCurrency(costPerKm)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Settings size={12}/> Último Service</p>
+                      {lastService ? (
+                        <p className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">{formatNumber(lastService.currentKmOrHours)} km/hs</p>
+                      ) : (
+                        <p className="font-bold text-slate-400 text-sm">Sin registro</p>
+                      )}
+                    </div>
+                  </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2">
-                    {/* Gastos Operativos */}
-                    {unit.details.expenses.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 print:text-black bg-slate-100 dark:bg-slate-800 py-2 px-3 rounded">
-                          Egresos: Gastos Operativos
-                        </h4>
-                        <table className="w-full text-sm text-left border border-slate-100 dark:border-slate-700 print:border-slate-300">
-                          <thead className="bg-slate-50 dark:bg-slate-800 print:bg-slate-100 text-slate-500">
-                            <tr>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300">Fecha</th>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300">Categoría / Detalle</th>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300 text-right">Monto</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {unit.details.expenses.map(e => (
-                              <tr key={e.id} className="border-t border-slate-100 dark:border-slate-700 print:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                <td className="px-3 py-2">{formatDate(e.date)}</td>
-                                <td className="px-3 py-2">
-                                  <span className="font-medium capitalize">{e.category}</span>
-                                  <div className="text-xs text-slate-500">{e.description}</div>
-                                </td>
-                                <td className="px-3 py-2 text-right font-medium text-red-600 print:text-black">-{formatCurrency(e.amount)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3">Detalle Operativo</h4>
+                  <div className="space-y-2">
 
-                    {/* Combustible */}
-                    {unit.details.fuel.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 print:text-black bg-slate-100 dark:bg-slate-800 py-2 px-3 rounded">
-                          Egresos: Combustible
-                        </h4>
-                        <table className="w-full text-sm text-left border border-slate-100 dark:border-slate-700 print:border-slate-300">
-                          <thead className="bg-slate-50 dark:bg-slate-800 print:bg-slate-100 text-slate-500">
-                            <tr>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300">Fecha</th>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300">Estación / Litros</th>
-                              <th className="px-3 py-2 print:border-b print:border-slate-300 text-right">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {unit.details.fuel.map(f => (
-                              <tr key={f.id} className="border-t border-slate-100 dark:border-slate-700 print:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                <td className="px-3 py-2">{formatDate(f.date)}</td>
-                                <td className="px-3 py-2">
-                                  <span className="font-medium">{f.liters} Lts</span>
-                                  <div className="text-xs text-slate-500">{f.station || 'N/A'}</div>
-                                </td>
-                                <td className="px-3 py-2 text-right font-medium text-orange-600 print:text-black">-{formatCurrency(f.total)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    {/* CATEGORÍA 1: VIAJES (FACTURACIÓN) */}
+                    <div className="bg-white dark:bg-slate-800 rounded-lg border border-emerald-200 dark:border-emerald-800/50 overflow-hidden">
+                      <button 
+                        onClick={() => toggleCategory(`${unit.id}-trips`)}
+                        className="w-full flex justify-between items-center p-3 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm">
+                          <Map size={18} /> Facturación de Viajes ({uTrips.length})
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="font-bold text-emerald-600">{formatCurrency(uRevenue)}</span>
+                          {expandedCategories[`${unit.id}-trips`] ? <ChevronUp size={16} className="text-emerald-500"/> : <ChevronDown size={16} className="text-emerald-500"/>}
+                        </div>
+                      </button>
+                      {expandedCategories[`${unit.id}-trips`] && (
+                        <div className="p-3 border-t border-emerald-100 dark:border-emerald-800/50">
+                          {uTrips.length === 0 ? <p className="text-xs text-slate-500 text-center py-2">No hay viajes registrados.</p> : (
+                            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                              <tbody>
+                                {uTrips.map(t => (
+                                  <tr key={t.id} className="border-b last:border-0 border-slate-100 dark:border-slate-700">
+                                    <td className="py-2">{formatDate(t.date)}</td>
+                                    <td className="py-2">{t.origin} → {t.destination}</td>
+                                    <td className="py-2 text-right font-semibold text-slate-900 dark:text-white">{formatCurrency(t.value)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* CATEGORÍA 2: COMBUSTIBLE */}
+                    <div className="bg-white dark:bg-slate-800 rounded-lg border border-orange-200 dark:border-orange-800/50 overflow-hidden">
+                      <button 
+                        onClick={() => toggleCategory(`${unit.id}-fuel`)}
+                        className="w-full flex justify-between items-center p-3 bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-bold text-sm">
+                          <Droplets size={18} /> Consumo de Combustible ({uFuel.length})
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="font-bold text-orange-600">-{formatCurrency(uFuelTotal)}</span>
+                          {expandedCategories[`${unit.id}-fuel`] ? <ChevronUp size={16} className="text-orange-500"/> : <ChevronDown size={16} className="text-orange-500"/>}
+                        </div>
+                      </button>
+                      {expandedCategories[`${unit.id}-fuel`] && (
+                        <div className="p-3 border-t border-orange-100 dark:border-orange-800/50">
+                          {uFuel.length === 0 ? <p className="text-xs text-slate-500 text-center py-2">No hay cargas registradas.</p> : (
+                            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                              <tbody>
+                                {uFuel.map(f => (
+                                  <tr key={f.id} className="border-b last:border-0 border-slate-100 dark:border-slate-700">
+                                    <td className="py-2">{formatDate(f.date)}</td>
+                                    <td className="py-2">{f.liters} Lts</td>
+                                    <td className="py-2">{f.station}</td>
+                                    <td className="py-2 text-right font-semibold text-slate-900 dark:text-white">{formatCurrency(f.total)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* CATEGORÍAS DINÁMICAS (Se generan solas según los gastos cargados: Peajes, Viáticos, Gomería, etc.) */}
+                    {Object.entries(expensesByCategory).map(([category, data]) => (
+                      <div key={category} className="bg-white dark:bg-slate-800 rounded-lg border border-red-200 dark:border-red-800/50 overflow-hidden">
+                        <button 
+                          onClick={() => toggleCategory(`${unit.id}-exp-${category}`)}
+                          className="w-full flex justify-between items-center p-3 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-bold text-sm capitalize">
+                            <Receipt size={18} /> Gastos: {category} ({data.items.length})
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="font-bold text-red-600">-{formatCurrency(data.total)}</span>
+                            {expandedCategories[`${unit.id}-exp-${category}`] ? <ChevronUp size={16} className="text-red-500"/> : <ChevronDown size={16} className="text-red-500"/>}
+                          </div>
+                        </button>
+                        {expandedCategories[`${unit.id}-exp-${category}`] && (
+                          <div className="p-3 border-t border-red-100 dark:border-red-800/50">
+                            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                              <tbody>
+                                {data.items.map(e => (
+                                  <tr key={e.id} className="border-b last:border-0 border-slate-100 dark:border-slate-700">
+                                    <td className="py-2 w-24">{formatDate(e.date)}</td>
+                                    <td className="py-2">{e.description}</td>
+                                    <td className="py-2 text-right font-semibold text-slate-900 dark:text-white">{formatCurrency(e.amount)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
+
                   </div>
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+              )}
+            </Card>
+          );
+        })}
+
+        {units.length === 0 && (
+          <div className="text-center py-12 text-slate-500">
+            <BarChart3 size={48} className="mx-auto text-slate-300 dark:text-slate-700 mb-4" />
+            <p>No hay unidades para generar reportes.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
