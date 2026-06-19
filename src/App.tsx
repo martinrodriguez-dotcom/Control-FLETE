@@ -4,14 +4,14 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, getDoc, getDocs } from 'firebase/firestore';
 
 // Tipos
-import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad, Settlement, ServiceRecord, UserProfile, UserRole } from './types';
+import { ViewState, TransportUnit, Client, Trip, Expense, FuelLoad, Settlement, ServiceRecord, UserProfile, UserRole, UserStatus } from './types';
 
 // Componentes
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Clock } from 'lucide-react';
 
 // Vistas
 import { DashboardView } from './pages/Dashboard';
@@ -43,30 +43,30 @@ export default function App() {
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
 
-  // 1. Efecto: Autenticación y Registro Automático de Usuarios
+  // 1. Efecto: Autenticación y Registro Automático
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       
       if (u && u.email) {
-        // Verifica si el usuario ya existe en Firestore
         const docRef = doc(db, 'user_profiles', u.uid);
         const snap = await getDoc(docRef);
         
         if (!snap.exists()) {
-          // Es nuevo. Consultamos si es la primera persona en usar la app
           const profilesSnap = await getDocs(collection(db, 'user_profiles'));
           const isFirstUser = profilesSnap.empty;
 
-          // REGLA MAESTRA: Si el correo es el oficial, O es el primer usuario, es Admin.
-          const assignedRole = (isFirstUser || u.email === 'admin@siipalletsflete.com') ? 'administrador' : 'operario';
+          const isMaster = u.email === 'admin@siipalletsflete.com';
+          const assignedRole = (isFirstUser || isMaster) ? 'administrador' : 'operario';
+          // NUEVO: Solo el Admin principal entra directo. Los demás van a "pendiente".
+          const assignedStatus = (isFirstUser || isMaster) ? 'activo' : 'pendiente';
 
           await setDoc(docRef, {
             id: u.uid,
             email: u.email,
             role: assignedRole,
-            name: u.displayName || u.email.split('@')[0],
-            isActive: true,
+            status: assignedStatus,
+            name: u.displayName || u.email.split('@')[0].replace('.', ' '),
             createdAt: Date.now()
           });
         }
@@ -102,9 +102,10 @@ export default function App() {
   // --- LÓGICA DE SEGURIDAD Y ROLES ---
   const currentUserProfile = userProfiles.find(p => p.email === user?.email);
   const userRole: UserRole = currentUserProfile?.role || 'operario';
-  const isUserActive = currentUserProfile ? currentUserProfile.isActive : true;
+  
+  // Soporte para usuarios viejos (que tenían isActive) y los nuevos (con status)
+  const userStatus: UserStatus = currentUserProfile?.status || (currentUserProfile?.isActive === false ? 'bloqueado' : currentUserProfile?.isActive === true ? 'activo' : 'pendiente');
 
-  // Forzar al operario a quedarse en mantenimiento
   useEffect(() => {
     if (userRole === 'operario' && view !== 'maintenance') {
       setView('maintenance');
@@ -115,8 +116,7 @@ export default function App() {
   const handleSaveItem = async (collectionName: string, data: any) => {
     if (!user) return;
 
-    // Filtros de Seguridad para Guardar/Modificar
-    if (userRole === 'encargado') {
+    if (userRole === 'encargado' && collectionName !== 'user_profiles') {
       alert('MODO LECTURA: Tu rol de Encargado no permite agregar ni modificar registros.');
       return;
     }
@@ -133,7 +133,6 @@ export default function App() {
   const handleDeleteItem = async (collectionName: string, id: string) => {
     if (!user) return;
 
-    // Filtros de Seguridad para Borrar
     if (userRole !== 'administrador') {
       alert('PERMISO DENEGADO: Solo el Administrador del sistema puede eliminar registros.');
       return;
@@ -156,8 +155,25 @@ export default function App() {
     return <LoginView />;
   }
 
-  // PANTALLA DE USUARIO BLOQUEADO
-  if (!isUserActive) {
+  // PANTALLA: USUARIO PENDIENTE DE APROBACIÓN
+  if (userStatus === 'pendiente') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 p-4 text-center">
+        <div className="bg-yellow-100 text-yellow-600 p-6 rounded-full mb-6 shadow-lg shadow-yellow-500/20 animate-pulse">
+          <Clock size={64} />
+        </div>
+        <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2">Cuenta en Revisión</h2>
+        <p className="text-slate-500 max-w-md text-lg">
+          Hola <strong>{currentUserProfile?.name || 'Usuario'}</strong>. Tu registro fue exitoso, pero un administrador debe habilitar tu acceso antes de que puedas usar el sistema.
+        </p>
+        <p className="text-slate-400 mt-4 text-sm">Por favor, avísale al encargado que ya te registraste.</p>
+        <Button onClick={() => auth.signOut()} variant="ghost" className="mt-8 border border-slate-300">Salir por ahora</Button>
+      </div>
+    );
+  }
+
+  // PANTALLA: USUARIO BLOQUEADO
+  if (userStatus === 'bloqueado') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 p-4 text-center">
         <ShieldAlert size={64} className="text-red-500 mb-4" />
@@ -178,7 +194,6 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
             
-            {/* Vistas restringidas según rol */}
             {userRole !== 'operario' && (
               <>
                 {view === 'dashboard' && <DashboardView trips={trips} expenses={expenses} fuel={fuel} units={units} clients={clients} />}
@@ -206,7 +221,6 @@ export default function App() {
               </>
             )}
 
-            {/* Mantenimiento: Accesible para todos */}
             {view === 'maintenance' && (
               <MaintenanceView 
                 units={units} services={services} fuel={fuel} currentUserEmail={user.email || ''}
@@ -214,7 +228,6 @@ export default function App() {
               />
             )}
 
-            {/* Panel de Administrador: Solo para Admin */}
             {userRole === 'administrador' && view === 'admin' && (
               <AdminView users={userProfiles} onSave={handleSaveItem} />
             )}
