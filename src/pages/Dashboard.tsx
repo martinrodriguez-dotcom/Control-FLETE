@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { LayoutDashboard, TrendingUp, TrendingDown, Filter, DollarSign, Activity, CheckCircle2, Circle, Map, Receipt } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, TrendingDown, Filter, DollarSign, Activity, CheckCircle2, Circle, Map, Receipt, Calendar } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Trip, Expense, FuelLoad, TransportUnit, Client } from '../types';
 
@@ -12,8 +12,16 @@ interface DashboardProps {
 }
 
 export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel, units, clients }) => {
+  // --- ESTADOS ---
+  // 1. Filtro de Fechas (Recuperado)
+  const [period, setPeriod] = useState<string>('month');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // 2. Filtro del Gráfico
   const [excludedUnits, setExcludedUnits] = useState<Set<string>>(new Set());
 
+  // --- UTILIDADES ---
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val || 0);
   const formatDate = (dateStr: string) => {
     try { return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); } catch { return dateStr; }
@@ -28,17 +36,44 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
     });
   };
 
-  // 1. Cálculos globales rápidos
-  const globalRevenue = trips.reduce((acc, t) => acc + Number(t.value || 0), 0);
-  const globalExpenses = expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0) + fuel.reduce((acc, f) => acc + Number(f.total || 0), 0);
+  // --- LÓGICA DE FILTRADO DE FECHAS ---
+  const filterByDate = (itemDate: string) => {
+    if (period === 'all') return true;
+    
+    const date = new Date(itemDate);
+    const now = new Date();
+    
+    if (period === 'month') {
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }
+    if (period === 'last_month') {
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
+    }
+    if (period === 'custom' && startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      return date >= start && date <= end;
+    }
+    return true;
+  };
+
+  // Aplicar filtro a todos los datos
+  const filteredTrips = trips.filter(t => filterByDate(t.date));
+  const filteredExpenses = expenses.filter(e => filterByDate(e.date));
+  const filteredFuel = fuel.filter(f => filterByDate(f.date));
+
+  // --- CÁLCULOS GLOBALES (Basados en las fechas filtradas) ---
+  const globalRevenue = filteredTrips.reduce((acc, t) => acc + Number(t.value || 0), 0);
+  const globalExpenses = filteredExpenses.reduce((acc, e) => acc + Number(e.amount || 0), 0) + filteredFuel.reduce((acc, f) => acc + Number(f.total || 0), 0);
   const globalNet = globalRevenue - globalExpenses;
 
-  // 2. Cálculos de Rentabilidad por Unidad (Gráfico)
+  // --- CÁLCULOS DEL GRÁFICO ---
   const chartData = useMemo(() => {
     const data = units.map(unit => {
-      const uTrips = trips.filter(t => t.unitId === unit.id);
-      const uExpenses = expenses.filter(e => e.unitId === unit.id);
-      const uFuel = fuel.filter(f => f.unitId === unit.id);
+      const uTrips = filteredTrips.filter(t => t.unitId === unit.id);
+      const uExpenses = filteredExpenses.filter(e => e.unitId === unit.id);
+      const uFuel = filteredFuel.filter(f => f.unitId === unit.id);
 
       const revenue = uTrips.reduce((sum, t) => sum + Number(t.value || 0), 0);
       const costs = uExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0) + uFuel.reduce((sum, f) => sum + Number(f.total || 0), 0);
@@ -47,16 +82,16 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
       return { unit, revenue, costs, net };
     });
     return data.filter(d => !excludedUnits.has(d.unit.id));
-  }, [units, trips, expenses, fuel, excludedUnits]);
+  }, [units, filteredTrips, filteredExpenses, filteredFuel, excludedUnits]);
 
   const maxMetric = useMemo(() => {
     if (chartData.length === 0) return 0;
     return Math.max(...chartData.map(d => Math.max(d.revenue, d.costs)));
   }, [chartData]);
 
-  // 3. Obtener últimos movimientos (Top 5)
-  const recentTrips = [...trips].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
-  const recentExpenses = [...expenses].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
+  // --- DATOS RECIENTES (Tablas) ---
+  const recentTrips = [...filteredTrips].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
+  const recentExpenses = [...filteredExpenses].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.name || 'Desconocido';
   const getUnitName = (id: string) => units.find(u => u.id === id)?.name || 'Desconocida';
@@ -64,12 +99,46 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
   return (
     <div className="space-y-6">
       
+      {/* CABECERA Y FILTRO DE FECHAS (Recuperado) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <LayoutDashboard className="text-blue-600" /> Panel Principal
           </h2>
-          <p className="text-slate-500 dark:text-slate-400">Resumen global y análisis de rentabilidad operativa</p>
+          <p className="text-slate-500 dark:text-slate-400">Resumen operativo según período seleccionado</p>
+        </div>
+
+        {/* SELECTOR DE PERÍODO */}
+        <div className="bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-wrap gap-2 items-center w-full sm:w-auto">
+          <Calendar size={18} className="text-slate-400 ml-2" />
+          <select 
+            value={period} 
+            onChange={(e) => setPeriod(e.target.value)}
+            className="bg-transparent border-none text-sm font-semibold text-slate-700 dark:text-slate-200 focus:ring-0 cursor-pointer outline-none"
+          >
+            <option value="month">Este Mes</option>
+            <option value="last_month">Mes Pasado</option>
+            <option value="all">Todo el Historial</option>
+            <option value="custom">Personalizado</option>
+          </select>
+
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 px-2 border-l border-slate-200 dark:border-slate-700 ml-2">
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none dark:color-scheme-dark"
+              />
+              <span className="text-slate-400">-</span>
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none dark:color-scheme-dark"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -100,7 +169,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
             <DollarSign size={24} />
           </div>
           <div>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Balance Neto Global</p>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Balance Neto</p>
             <p className={`text-2xl font-bold ${globalNet >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600'}`}>
               {formatCurrency(globalNet)}
             </p>
@@ -108,13 +177,13 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
         </Card>
       </div>
 
-      {/* GRÁFICO DE RENTABILIDAD */}
+      {/* GRÁFICO DE RENTABILIDAD INTEGRAD0 */}
       <Card className="p-0 overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700">
         <div className="p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Activity className="text-blue-600" size={20} /> Rentabilidad por Vehículo
           </h3>
-          <p className="text-sm text-slate-500 mt-1">Comparativa de Ingresos vs. Egresos. Haz clic en las unidades para filtrarlas.</p>
+          <p className="text-sm text-slate-500 mt-1">Comparativa de Ingresos vs. Egresos en el período seleccionado. Clickea para excluir unidades.</p>
           
           <div className="mt-4 flex flex-wrap gap-2">
             <div className="flex items-center gap-2 mr-2 text-sm font-medium text-slate-600 dark:text-slate-400">
@@ -142,7 +211,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
 
         <div className="p-5 space-y-6">
           {chartData.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">No hay unidades seleccionadas.</div>
+            <div className="text-center py-8 text-slate-500">No hay datos o unidades para mostrar en este período.</div>
           ) : (
             chartData.map(data => {
               const revenuePct = maxMetric > 0 ? (data.revenue / maxMetric) * 100 : 0;
@@ -183,14 +252,14 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
         </div>
       </Card>
 
-      {/* ACTIVIDAD RECIENTE (Tablas devueltas) */}
+      {/* ACTIVIDAD RECIENTE (TABLAS RECUPERADAS) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* ÚLTIMOS VIAJES */}
         <Card className="p-0 overflow-hidden shadow-sm">
           <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center gap-2">
             <Map className="text-emerald-500" size={20} />
-            <h3 className="font-bold text-slate-900 dark:text-white">Últimos Viajes Registrados</h3>
+            <h3 className="font-bold text-slate-900 dark:text-white">Viajes del Período</h3>
           </div>
           <div className="p-0">
             {recentTrips.length > 0 ? (
@@ -210,7 +279,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
                 </tbody>
               </table>
             ) : (
-              <div className="p-6 text-center text-slate-500 text-sm">No hay viajes recientes.</div>
+              <div className="p-6 text-center text-slate-500 text-sm">No hay viajes en este período.</div>
             )}
           </div>
         </Card>
@@ -219,7 +288,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
         <Card className="p-0 overflow-hidden shadow-sm">
           <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center gap-2">
             <Receipt className="text-red-500" size={20} />
-            <h3 className="font-bold text-slate-900 dark:text-white">Últimos Gastos Registrados</h3>
+            <h3 className="font-bold text-slate-900 dark:text-white">Gastos del Período</h3>
           </div>
           <div className="p-0">
             {recentExpenses.length > 0 ? (
@@ -239,7 +308,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
                 </tbody>
               </table>
             ) : (
-              <div className="p-6 text-center text-slate-500 text-sm">No hay gastos recientes.</div>
+              <div className="p-6 text-center text-slate-500 text-sm">No hay gastos en este período.</div>
             )}
           </div>
         </Card>
