@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wrench, Settings, Droplets, History, Activity, Calendar, User as UserIcon, CheckSquare, Square, Truck, ChevronRight } from 'lucide-react';
+import { Settings, Droplets, History, Activity, Calendar, User as UserIcon, CheckSquare, Square, Truck, ChevronRight } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -32,14 +32,14 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
   services = [], 
   fuel = [], 
   currentUserEmail = 'usuario@desconocido.com', 
-  onSave, 
-  onDelete 
+  onSave 
+  // onDelete removido de aquí para evitar el error TS6133
 }) => {
   const [selectedUnit, setSelectedUnit] = useState<TransportUnit | null>(null);
   const [activeTab, setActiveTab] = useState<'km' | 'fuel' | 'service' | 'history'>('km');
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
 
-  // Funciones de formato ultra-seguras (evitan que la app crashee si un dato viene mal de Firebase)
+  // Funciones de formato ultra-seguras
   const safeFormatNumber = (val: any) => {
     if (val === null || val === undefined || isNaN(Number(val))) return '';
     return Number(val).toLocaleString('es-AR');
@@ -157,30 +157,29 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
       {/* GRILLA DE UNIDADES */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {units.map(unit => (
-          <Card 
-            key={unit.id} 
-            className="p-5 hover:shadow-md transition-shadow cursor-pointer border-l-4 border-blue-500 group"
-            onClick={() => handleOpenUnit(unit)}
-          >
-            <div className="flex justify-between items-start">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg">
-                  <Truck size={24} />
+          /* Envolvemos el Card en un div clickeable para evitar el error de TypeScript */
+          <div key={unit.id} onClick={() => handleOpenUnit(unit)} className="cursor-pointer group">
+            <Card className="p-5 hover:shadow-md transition-shadow border-l-4 border-blue-500 h-full">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg">
+                    <Truck size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">{unit.name}</h3>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{unit.plate}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">{unit.name}</h3>
-                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{unit.plate}</p>
-                </div>
+                <ChevronRight className="text-slate-300 group-hover:text-blue-500 transition-colors" />
               </div>
-              <ChevronRight className="text-slate-300 group-hover:text-blue-500 transition-colors" />
-            </div>
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-sm">
-              <span className="text-slate-500">Último registro:</span>
-              <span className="font-bold text-slate-700 dark:text-slate-300">
-                {unit.currentKm ? `${safeFormatNumber(unit.currentKm)} km/hs` : 'Sin datos'}
-              </span>
-            </div>
-          </Card>
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-sm">
+                <span className="text-slate-500">Último registro:</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">
+                  {unit.currentKm ? `${safeFormatNumber(unit.currentKm)} km/hs` : 'Sin datos'}
+                </span>
+              </div>
+            </Card>
+          </div>
         ))}
         {units.length === 0 && (
           <div className="col-span-full text-center py-10 text-slate-500">
@@ -299,7 +298,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
                           title = "Carga de Combustible";
                         }
 
-                        // Evitar crasheos al extraer la hora
                         const timeString = formatDateTime(record.createdAt);
                         const timeOnly = timeString.includes(',') ? timeString.split(',')[1] : '';
 
