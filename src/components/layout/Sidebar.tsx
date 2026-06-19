@@ -7,15 +7,14 @@ interface SidebarProps {
   setView: (view: ViewState) => void;
   isOpen: boolean;
   setOpen: (isOpen: boolean) => void;
-  userRole: UserRole; // <-- Agregamos el rol para filtrar el menú
+  userRole: UserRole;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen, userRole }) => {
   
-  // Todas las opciones posibles
   const allNavItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'units', label: 'Unidades', icon: Truck },
+    { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard }, // <-- Nombre actualizado
+    { id: 'units', label: 'Unidades / Tanques', icon: Truck },
     { id: 'clients', label: 'Clientes', icon: Users },
     { id: 'trips', label: 'Viajes', icon: Map },
     { id: 'settlements', label: 'Liquidaciones', icon: ClipboardCheck },
@@ -26,15 +25,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, isOpen, setOpen
     { id: 'admin', label: 'Panel Admin', icon: Shield },
   ];
 
-  // Filtramos el menú según el rol del usuario
   const navItems = allNavItems.filter(item => {
-    if (userRole === 'operario') {
-      return item.id === 'maintenance'; // Operario SOLO ve mantenimiento
-    }
-    if (userRole === 'encargado') {
-      return item.id !== 'admin'; // Encargado ve TODO menos el panel de seguridad
-    }
-    return true; // Administrador ve TODO
+    if (userRole === 'operario') return item.id === 'maintenance';
+    if (userRole === 'encargado') return item.id !== 'admin';
+    return true; 
   });
 
   return (
