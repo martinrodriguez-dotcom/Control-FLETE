@@ -12,7 +12,6 @@ interface MaintenanceProps {
   fuel?: FuelLoad[];
   currentUserEmail?: string;
   onSave: (collectionName: string, data: any) => void;
-  onDelete: (collectionName: string, id: string) => void;
 }
 
 const COMMON_PARTS = [
@@ -33,13 +32,11 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
   fuel = [], 
   currentUserEmail = 'usuario@desconocido.com', 
   onSave 
-  // onDelete removido de aquí para evitar el error TS6133
 }) => {
   const [selectedUnit, setSelectedUnit] = useState<TransportUnit | null>(null);
   const [activeTab, setActiveTab] = useState<'km' | 'fuel' | 'service' | 'history'>('km');
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
 
-  // Funciones de formato ultra-seguras
   const safeFormatNumber = (val: any) => {
     if (val === null || val === undefined || isNaN(Number(val))) return '';
     return Number(val).toLocaleString('es-AR');
@@ -122,18 +119,35 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     if (!selectedUnit) return;
     const fd = new FormData(e.target as HTMLFormElement);
     
+    const serviceNotes = fd.get('notes') as string;
+    const serviceDate = fd.get('date') as string;
+    const currentKm = Number(fd.get('currentKmOrHours'));
+    
+    // 1. Guardar la ficha técnica
     onSave('services', {
       unitId: selectedUnit.id,
       type: 'service',
-      date: fd.get('date'),
-      currentKmOrHours: Number(fd.get('currentKmOrHours')),
+      date: serviceDate,
+      currentKmOrHours: currentKm,
       serviceInterval: Number(fd.get('serviceInterval')),
       partsReplaced: Array.from(selectedParts),
-      notes: fd.get('notes'),
+      notes: serviceNotes,
       userEmail: currentUserEmail
     });
 
-    onSave('units', { ...selectedUnit, currentKm: Number(fd.get('currentKmOrHours')) });
+    // 2. Actualizar los KM de la unidad
+    onSave('units', { ...selectedUnit, currentKm: currentKm });
+
+    // 3. ENVÍO A GASTOS COMO "PENDIENTE" (Monto 0)
+    onSave('expenses', {
+      date: serviceDate,
+      unitId: selectedUnit.id,
+      category: 'mantenimiento',
+      description: `Service a los ${currentKm} km/hs. ${serviceNotes ? `(${serviceNotes})` : ''}`,
+      amount: 0, // Se envía en 0 para que la administración lo cargue después
+      userEmail: currentUserEmail
+    });
+
     setSelectedUnit(null);
   };
 
@@ -154,10 +168,8 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
         <p className="text-slate-500 dark:text-slate-400">Control de services, actualización de horas/km e historial de auditoría</p>
       </div>
 
-      {/* GRILLA DE UNIDADES */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {units.map(unit => (
-          /* Envolvemos el Card en un div clickeable para evitar el error de TypeScript */
           <div key={unit.id} onClick={() => handleOpenUnit(unit)} className="cursor-pointer group">
             <Card className="p-5 hover:shadow-md transition-shadow border-l-4 border-blue-500 h-full">
               <div className="flex justify-between items-start">
@@ -188,7 +200,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
         )}
       </div>
 
-      {/* MODAL DE GESTIÓN POR UNIDAD */}
       <Modal 
         isOpen={!!selectedUnit} 
         onClose={() => setSelectedUnit(null)} 
@@ -197,7 +208,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
         {selectedUnit && (
           <div className="flex flex-col h-full max-h-[70vh]">
             
-            {/* PESTAÑAS */}
             <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-700 mb-4 pb-1 shrink-0 gap-2">
               <Button variant={activeTab === 'km' ? 'primary' : 'ghost'} onClick={() => setActiveTab('km')} className="whitespace-nowrap px-3 py-1.5 text-sm" icon={Activity}>Actualizar KM/Hs</Button>
               <Button variant={activeTab === 'fuel' ? 'primary' : 'ghost'} onClick={() => setActiveTab('fuel')} className="whitespace-nowrap px-3 py-1.5 text-sm text-orange-600 dark:text-orange-400" icon={Droplets}>Carga Gasoil</Button>
@@ -205,10 +215,8 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
               <Button variant={activeTab === 'history' ? 'primary' : 'ghost'} onClick={() => setActiveTab('history')} className="whitespace-nowrap px-3 py-1.5 text-sm text-purple-600 dark:text-purple-400" icon={History}>Historial</Button>
             </div>
 
-            {/* CONTENIDO DESPLAZABLE */}
             <div className="overflow-y-auto pr-2 flex-1 pb-4">
               
-              {/* TAB 1: ACTUALIZAR KM/HS */}
               {activeTab === 'km' && (
                 <form onSubmit={handleSaveKm} className="space-y-4 animate-in fade-in">
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-sm text-blue-800 dark:text-blue-300 mb-4">
@@ -221,11 +229,10 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
                 </form>
               )}
 
-              {/* TAB 2: CARGA RÁPIDA DE COMBUSTIBLE */}
               {activeTab === 'fuel' && (
                 <form onSubmit={handleSaveFuel} className="space-y-4 animate-in fade-in">
                   <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg text-sm text-orange-800 dark:text-orange-300 mb-4">
-                    Registro rápido de litros cargados. (Los costos se pueden ajustar luego en la pestaña principal de Combustible).
+                    Registro rápido de litros cargados. (Los costos exactos se pueden ajustar luego en la pestaña de Combustible).
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <Input label="Fecha" name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} required />
@@ -236,17 +243,17 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
                 </form>
               )}
 
-              {/* TAB 3: REGISTRAR SERVICE */}
               {activeTab === 'service' && (
                 <form onSubmit={handleSaveService} className="space-y-4 animate-in fade-in">
                   <div className="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-lg text-sm text-emerald-800 dark:text-emerald-300 mb-4">
-                    Registra un service completado. Marca los elementos que fueron reemplazados.
+                    Registra la ficha técnica. El sistema enviará una alerta automática a Gastos para que la Administración cargue la factura.
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <Input label="Fecha del Service" name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} required />
                     <Input label="KM / Horas Actuales" name="currentKmOrHours" type="number" defaultValue={selectedUnit.currentKm} required />
                   </div>
+                  
                   <Input label="Frecuencia Base (Ej: cada 2500 hs)" name="serviceInterval" type="number" placeholder="2500" required />
                   
                   <div className="mt-4">
@@ -268,11 +275,10 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
 
                   <Input label="Trabajos Adicionales / Observaciones" name="notes" type="textarea" placeholder="Ej: Se cambió correa del alternador..." />
                   
-                  <Button type="submit" className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700">Guardar Reporte de Service</Button>
+                  <Button type="submit" className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700">Guardar Ficha Técnica</Button>
                 </form>
               )}
 
-              {/* TAB 4: HISTORIAL Y AUDITORÍA */}
               {activeTab === 'history' && (
                 <div className="space-y-4 animate-in fade-in">
                   {getUnitHistory(selectedUnit.id).length === 0 ? (
