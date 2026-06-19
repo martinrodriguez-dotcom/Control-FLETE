@@ -7,10 +7,10 @@ import { Modal } from '../components/ui/Modal';
 import { TransportUnit, ServiceRecord, FuelLoad } from '../types';
 
 interface MaintenanceProps {
-  units: TransportUnit[];
-  services: ServiceRecord[];
-  fuel: FuelLoad[];
-  currentUserEmail: string;
+  units?: TransportUnit[];
+  services?: ServiceRecord[];
+  fuel?: FuelLoad[];
+  currentUserEmail?: string;
   onSave: (collectionName: string, data: any) => void;
   onDelete: (collectionName: string, id: string) => void;
 }
@@ -27,13 +27,35 @@ const COMMON_PARTS = [
   'Rotación de Neumáticos'
 ];
 
-export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, fuel, currentUserEmail, onSave, onDelete }) => {
+export const MaintenanceView: React.FC<MaintenanceProps> = ({ 
+  units = [], 
+  services = [], 
+  fuel = [], 
+  currentUserEmail = 'usuario@desconocido.com', 
+  onSave, 
+  onDelete 
+}) => {
   const [selectedUnit, setSelectedUnit] = useState<TransportUnit | null>(null);
   const [activeTab, setActiveTab] = useState<'km' | 'fuel' | 'service' | 'history'>('km');
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
 
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' });
-  const formatDateTime = (ts: number) => new Date(ts).toLocaleString('es-AR');
+  // Funciones de formato ultra-seguras (evitan que la app crashee si un dato viene mal de Firebase)
+  const safeFormatNumber = (val: any) => {
+    if (val === null || val === undefined || isNaN(Number(val))) return '';
+    return Number(val).toLocaleString('es-AR');
+  };
+
+  const formatDate = (dateStr: any) => {
+    if (!dateStr) return '';
+    try { return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); } 
+    catch (e) { return dateStr; }
+  };
+
+  const formatDateTime = (ts: any) => {
+    if (!ts) return '';
+    try { return new Date(ts).toLocaleString('es-AR'); } 
+    catch (e) { return ''; }
+  };
 
   const handleOpenUnit = (unit: TransportUnit) => {
     setSelectedUnit(unit);
@@ -55,7 +77,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, f
     if (!selectedUnit) return;
     const fd = new FormData(e.target as HTMLFormElement);
     
-    // 1. Guardamos el registro en el historial de services
     onSave('services', {
       unitId: selectedUnit.id,
       type: 'km_update',
@@ -65,7 +86,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, f
       userEmail: currentUserEmail
     });
 
-    // 2. Actualizamos el KM actual en la ficha de la unidad
     onSave('units', {
       ...selectedUnit,
       currentKm: Number(fd.get('currentKmOrHours'))
@@ -83,7 +103,7 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, f
       unitId: selectedUnit.id,
       date: fd.get('date'),
       liters: Number(fd.get('liters')),
-      pricePerLiter: 0, // Carga rápida, se puede editar luego en la vista de Combustible
+      pricePerLiter: 0, 
       total: 0,
       station: fd.get('station') || 'Carga Rápida (Satelital)',
       currentKm: Number(fd.get('currentKm')),
@@ -117,12 +137,14 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, f
     setSelectedUnit(null);
   };
 
-  // Combinar historial de services y combustible
   const getUnitHistory = (unitId: string) => {
-    const unitServices = services.filter(s => s.unitId === unitId).map(s => ({ ...s, collection: 'services' }));
-    const unitFuel = fuel.filter(f => f.unitId === unitId).map(f => ({ ...f, collection: 'fuel', type: 'fuel_load' }));
+    const safeServices = Array.isArray(services) ? services : [];
+    const safeFuel = Array.isArray(fuel) ? fuel : [];
+
+    const unitServices = safeServices.filter(s => s.unitId === unitId).map(s => ({ ...s, collection: 'services' }));
+    const unitFuel = safeFuel.filter(f => f.unitId === unitId).map(f => ({ ...f, collection: 'fuel', type: 'fuel_load' }));
     
-    return [...unitServices, ...unitFuel].sort((a, b) => b.createdAt - a.createdAt);
+    return [...unitServices, ...unitFuel].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   };
 
   return (
@@ -155,7 +177,7 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, f
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-sm">
               <span className="text-slate-500">Último registro:</span>
               <span className="font-bold text-slate-700 dark:text-slate-300">
-                {unit.currentKm ? `${unit.currentKm.toLocaleString('es-AR')} km/hs` : 'Sin datos'}
+                {unit.currentKm ? `${safeFormatNumber(unit.currentKm)} km/hs` : 'Sin datos'}
               </span>
             </div>
           </Card>
@@ -171,7 +193,7 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, f
       <Modal 
         isOpen={!!selectedUnit} 
         onClose={() => setSelectedUnit(null)} 
-        title={`Gestión: ${selectedUnit?.name} (${selectedUnit?.plate})`}
+        title={`Gestión: ${selectedUnit?.name || ''} (${selectedUnit?.plate || ''})`}
       >
         {selectedUnit && (
           <div className="flex flex-col h-full max-h-[70vh]">
@@ -277,6 +299,10 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, f
                           title = "Carga de Combustible";
                         }
 
+                        // Evitar crasheos al extraer la hora
+                        const timeString = formatDateTime(record.createdAt);
+                        const timeOnly = timeString.includes(',') ? timeString.split(',')[1] : '';
+
                         return (
                           <div key={record.id} className="relative pl-6">
                             <div className={`absolute -left-[13px] top-1 w-6 h-6 rounded-full border-2 flex items-center justify-center ${colorClass} bg-white dark:bg-slate-800`}>
@@ -292,17 +318,17 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({ units, services, f
                                     <UserIcon size={12} /> {record.userEmail || 'Usuario Desconocido'}
                                   </div>
                                 </div>
-                                <span className="text-xs text-slate-400">{formatDateTime(record.createdAt).split(',')[1]}</span>
+                                <span className="text-xs text-slate-400">{timeOnly}</span>
                               </div>
                               
                               <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-2 rounded mt-2">
-                                {isKm && <p>Registrado en: <strong>{record.currentKmOrHours?.toLocaleString('es-AR')} km/hs</strong></p>}
-                                {isFuel && <p>Se cargaron <strong>{record.liters} Lts</strong> a los {record.currentKm?.toLocaleString('es-AR')} km/hs.</p>}
+                                {isKm && <p>Registrado en: <strong>{safeFormatNumber(record.currentKmOrHours)} km/hs</strong></p>}
+                                {isFuel && <p>Se cargaron <strong>{record.liters} Lts</strong> a los {safeFormatNumber(record.currentKm)} km/hs.</p>}
                                 {isService && (
                                   <>
-                                    <p>Realizado a los: <strong>{record.currentKmOrHours?.toLocaleString('es-AR')} km/hs</strong></p>
+                                    <p>Realizado a los: <strong>{safeFormatNumber(record.currentKmOrHours)} km/hs</strong></p>
                                     <p className="text-xs text-slate-500 mt-1">Base: cada {record.serviceInterval} hs</p>
-                                    {record.partsReplaced?.length > 0 && (
+                                    {record.partsReplaced && record.partsReplaced.length > 0 && (
                                       <div className="mt-2 flex flex-wrap gap-1">
                                         {record.partsReplaced.map((p: string) => (
                                           <span key={p} className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/50">{p}</span>
