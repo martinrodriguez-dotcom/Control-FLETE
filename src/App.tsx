@@ -199,7 +199,7 @@ export default function App() {
                 {view === 'settlements' && <SettlementsView units={units} trips={trips} clients={clients} settlements={settlements} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
                 {view === 'expenses' && <ExpensesView expenses={expenses} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
                 
-                {/* VISTA DE REPORTES (Aquí inyectamos la variable 'services') */}
+                {/* VISTA DE REPORTES */}
                 {view === 'reports' && <ReportsView units={units} trips={trips} expenses={expenses} fuel={fuel} services={services} />}
                 
                 {view === 'clients' && (
@@ -221,13 +221,15 @@ export default function App() {
               </>
             )}
 
+            {/* Mantenimiento: Accesible para todos */}
             {view === 'maintenance' && (
               <MaintenanceView 
                 units={units} services={services} fuel={fuel} currentUserEmail={user.email || ''}
-                onSave={handleSaveItem} onDelete={handleDeleteItem} 
+                onSave={handleSaveItem} 
               />
             )}
 
+            {/* Panel de Administrador: Solo para Admin */}
             {userRole === 'administrador' && view === 'admin' && (
               <AdminView users={userProfiles} onSave={handleSaveItem} />
             )}
