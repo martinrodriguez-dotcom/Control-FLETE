@@ -1,38 +1,49 @@
 import React, { useState } from 'react';
 import { auth } from '../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Truck, Mail, Lock, AlertCircle } from 'lucide-react';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { Truck, LogIn, UserPlus } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Convierte un nombre normal (Ej: Juan Perez) a un correo para Firebase
+  const formatEmail = (input: string) => {
+    const trimmed = input.trim();
+    if (trimmed.includes('@')) {
+      return trimmed.toLowerCase();
+    }
+    // Convertir "Juan Perez" a "juan.perez@siipallets.local"
+    const slug = trimmed.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '');
+    return `${slug}@siipallets.local`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    const finalEmail = formatEmail(identifier);
+
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, finalEmail, password);
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        await createUserWithEmailAndPassword(auth, finalEmail, password);
       }
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/invalid-credential') {
-        setError('Correo o contraseña incorrectos.');
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Usuario o contraseña incorrectos.');
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('Ese correo ya está registrado. Intenta iniciar sesión.');
+        setError('Este usuario ya está registrado.');
       } else if (err.code === 'auth/weak-password') {
         setError('La contraseña debe tener al menos 6 caracteres.');
       } else {
-        setError('Ocurrió un error. Verifica tus datos e intenta de nuevo.');
+        setError('Ocurrió un error. Verifica tus datos e intenta nuevamente.');
       }
     } finally {
       setLoading(false);
@@ -40,93 +51,101 @@ export const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 p-4">
-      <div className="w-full max-w-md">
-        
-        <div className="text-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="mx-auto w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-blue-600/30 transform transition-transform hover:scale-105">
-            <Truck size={40} className="text-white" strokeWidth={2.5} />
-          </div>
-          
-          {/* NUEVO LOGO CORPORATIVO SII PALLETS */}
-          <h1 className="text-4xl font-black tracking-tight drop-shadow-sm">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center items-center gap-3">
+          <Truck className="text-blue-600" size={40} strokeWidth={2.5} />
+          <span className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">
             <span className="text-blue-600">SII</span>
-            <span className="text-slate-900 dark:text-white ml-2">PALLETS</span>
-          </h1>
-          
-          <p className="text-slate-500 dark:text-slate-400 mt-3 font-medium text-lg">
-            Plataforma de Gestión Logística
-          </p>
+            <span className="ml-2">PALLETS</span>
+          </span>
         </div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900 dark:text-white">
+          {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
+        </h2>
+        <p className="mt-2 text-center text-sm text-slate-600 dark:text-slate-400">
+          {isLogin ? 'Ingresa al sistema de gestión' : 'Regístrate para solicitar acceso'}
+        </p>
+      </div>
 
-        <Card className="p-6 sm:p-8 shadow-2xl border-0 ring-1 ring-slate-200 dark:ring-slate-800 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 text-center">
-            {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
-          </h2>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2 text-red-700 dark:text-red-400 text-sm">
-              <AlertCircle size={18} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Correo Electrónico
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Mail size={18} />
-                </div>
-                <input
-                  type="email"
-                  required
-                  className="w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
-                  placeholder="tu@correo.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white dark:bg-slate-800 py-8 px-4 shadow-xl sm:rounded-xl sm:px-10 border border-slate-200 dark:border-slate-700">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm text-center font-medium">
+                {error}
               </div>
+            )}
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Usuario (Nombre o Email)
+              </label>
+              <input
+                type="text"
+                required
+                className="appearance-none block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                placeholder="Ej: Juan Perez  o  juan@correo.com"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-slate-500">Escribe tu nombre y apellido, o tu email si tienes uno.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Contraseña
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Lock size={18} />
-                </div>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  className="w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+              <input
+                type="password"
+                required
+                className="appearance-none block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : isLogin ? (
+                <span className="flex items-center gap-2"><LogIn size={18} /> Ingresar al Sistema</span>
+              ) : (
+                <span className="flex items-center gap-2"><UserPlus size={18} /> Solicitar Acceso</span>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-300 dark:border-slate-700" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white dark:bg-slate-800 text-slate-500">
+                  {isLogin ? '¿Es tu primera vez?' : '¿Ya estás autorizado?'}
+                </span>
               </div>
             </div>
 
-            <Button type="submit" className="w-full py-3 mt-4 text-base font-bold shadow-md hover:shadow-lg transition-all" disabled={loading}>
-              {loading ? 'Procesando...' : (isLogin ? 'Ingresar a mi cuenta' : 'Registrarme')}
-            </Button>
-          </form>
-
-          <div className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-6">
-            {isLogin ? '¿No tienes una cuenta?' : '¿Ya tienes una cuenta?'}
-            <button 
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setError(''); }}
-              className="ml-1 text-blue-600 dark:text-blue-400 font-bold hover:underline"
-            >
-              {isLogin ? 'Regístrate aquí' : 'Inicia sesión'}
-            </button>
+            <div className="mt-6">
+              <button
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError('');
+                }}
+                className="w-full flex justify-center py-2.5 px-4 border-2 border-slate-300 dark:border-slate-600 rounded-lg shadow-sm text-sm font-bold text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                {isLogin ? 'Solicitar Cuenta Nueva' : 'Inicia Sesión Aquí'}
+              </button>
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
