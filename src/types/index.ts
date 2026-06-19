@@ -1,16 +1,25 @@
-export type ViewState = 'dashboard' | 'units' | 'clients' | 'trips' | 'expenses' | 'fuel' | 'reports' | 'settlements' | 'maintenance';
+export type ViewState = 'dashboard' | 'units' | 'clients' | 'trips' | 'expenses' | 'fuel' | 'reports' | 'settlements' | 'maintenance' | 'admin';
+
+export type UserRole = 'administrador' | 'encargado' | 'operario';
 
 export interface BaseEntity { 
   id: string; 
   createdAt: number; 
-  userEmail?: string; // Agregado para auditoría (quién cargó el dato)
+  userEmail?: string; 
+}
+
+export interface UserProfile extends BaseEntity {
+  email: string;
+  role: UserRole;
+  name: string;
+  isActive: boolean;
 }
 
 export interface TransportUnit extends BaseEntity {
   name: string; plate: string; brand: string; model: string; year: number;
   type: 'camion' | 'semirremolque'; insuranceCompany: string; insuranceExpiry: string;
   status: 'activo' | 'inactivo'; notes: string;
-  currentKm?: number; // Agregado para guardar el último KM o Horas actualizado
+  currentKm?: number; 
 }
 
 export interface Client extends BaseEntity {
@@ -38,13 +47,12 @@ export interface Settlement extends BaseEntity {
   notes: string;
 }
 
-// NUEVO: Registro de Service y actualización de KM/Horas
 export interface ServiceRecord extends BaseEntity {
   date: string;
   unitId: string;
   type: 'service' | 'km_update'; 
   currentKmOrHours: number;
-  serviceInterval?: number; // Ej: cada 2500 hs
-  partsReplaced?: string[]; // Lista de filtros, aceite, etc. con tilde
+  serviceInterval?: number; 
+  partsReplaced?: string[]; 
   notes?: string;
 }
