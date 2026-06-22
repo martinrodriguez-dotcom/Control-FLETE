@@ -41,7 +41,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
     const date = new Date(itemDate);
     const now = new Date();
     
-    if (period === 'month') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    if (period === 'month') return return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     if (period === 'last_month') {
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
@@ -222,7 +222,10 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
         </div>
       )}
 
+      {/* SECCIÓN DE GRÁFICOS CORREGIDA (ALTURAS FIJAS) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* GRÁFICO 1: BARRAS */}
         <Card className="lg:col-span-2 p-0 overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
           <div className="p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -252,7 +255,9 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
               })}
             </div>
           </div>
-          <div className="p-5 h-80 w-full flex-1">
+          
+          {/* EL TRUCO: Altura fija de 350px */}
+          <div className="p-5 w-full" style={{ height: '350px' }}>
             {barChartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500">No hay datos para mostrar.</div>
             ) : (
@@ -276,13 +281,16 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
           </div>
         </Card>
 
+        {/* GRÁFICO 2: TORTA */}
         <Card className="p-0 overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
           <div className="p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <PieChartIcon className="text-orange-500" size={20} /> Origen de Egresos
             </h3>
           </div>
-          <div className="p-5 h-80 w-full flex-1">
+          
+          {/* EL TRUCO: Altura fija de 350px */}
+          <div className="p-5 w-full" style={{ height: '350px' }}>
             {pieChartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500">Sin gastos registrados.</div>
             ) : (
