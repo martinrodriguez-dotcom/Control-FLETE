@@ -13,13 +13,11 @@ interface DashboardProps {
 }
 
 export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel, units, clients }) => {
-  // --- ESTADOS ---
   const [period, setPeriod] = useState<string>('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [excludedUnits, setExcludedUnits] = useState<Set<string>>(new Set());
 
-  // --- UTILIDADES ---
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val || 0);
   const formatDate = (dateStr: string) => {
     try { return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); } catch { return dateStr; }
@@ -35,11 +33,9 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
     });
   };
 
-  // --- SEPARAR VEHÍCULOS DE TANQUES ---
   const vehicles = units.filter(u => u.type !== 'tanque');
   const activeTanks = units.filter(u => u.type === 'tanque' && u.status === 'activo');
 
-  // --- LÓGICA DE FILTRADO DE FECHAS ---
   const filterByDate = (itemDate: string) => {
     if (period === 'all') return true;
     const date = new Date(itemDate);
@@ -62,12 +58,10 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
   const filteredExpenses = expenses.filter(e => filterByDate(e.date));
   const filteredFuel = fuel.filter(f => filterByDate(f.date));
 
-  // --- CÁLCULOS GLOBALES ---
   const globalRevenue = filteredTrips.reduce((acc, t) => acc + Number(t.value || 0), 0);
   const globalExpenses = filteredExpenses.reduce((acc, e) => acc + Number(e.amount || 0), 0) + filteredFuel.reduce((acc, f) => acc + Number(f.total || 0), 0);
   const globalNet = globalRevenue - globalExpenses;
 
-  // --- DATOS PARA GRÁFICO DE BARRAS (RENTABILIDAD) ---
   const barChartData = useMemo(() => {
     const data = vehicles.map(unit => {
       const uTrips = filteredTrips.filter(t => t.unitId === unit.id);
@@ -77,17 +71,11 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
       const Ingresos = uTrips.reduce((sum, t) => sum + Number(t.value || 0), 0);
       const Egresos = uExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0) + uFuel.reduce((sum, f) => sum + Number(f.total || 0), 0);
 
-      return { 
-        id: unit.id,
-        name: unit.name, 
-        Ingresos, 
-        Egresos 
-      };
+      return { id: unit.id, name: unit.name, Ingresos, Egresos };
     });
     return data.filter(d => !excludedUnits.has(d.id));
   }, [vehicles, filteredTrips, filteredExpenses, filteredFuel, excludedUnits]);
 
-  // --- DATOS PARA GRÁFICO DE TORTA (DISTRIBUCIÓN DE GASTOS) ---
   const pieChartData = useMemo(() => {
     let totalFuel = filteredFuel.reduce((sum, f) => sum + Number(f.total || 0), 0);
     let expGroup = filteredExpenses.reduce((acc, curr) => {
@@ -101,27 +89,23 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
       value: expGroup[k] 
     }));
     
-    if (totalFuel > 0) {
-      data.push({ name: 'Combustible', value: totalFuel });
-    }
+    if (totalFuel > 0) data.push({ name: 'Combustible', value: totalFuel });
     return data.sort((a,b) => b.value - a.value);
   }, [filteredExpenses, filteredFuel]);
 
   const COLORS = ['#f97316', '#ef4444', '#3b82f6', '#8b5cf6', '#10b981', '#64748b', '#ec4899'];
 
-  // --- DATOS RECIENTES ---
   const recentTrips = [...filteredTrips].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
   const recentExpenses = [...filteredExpenses].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.name || 'Desconocido';
   const getUnitName = (id: string) => units.find(u => u.id === id)?.name || 'Desconocida';
 
-  // Tooltip personalizado para formatear a pesos en Recharts
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
-          <p className="font-bold text-slate-900 dark:text-white mb-2">{label}</p>
+          {label && <p className="font-bold text-slate-900 dark:text-white mb-2">{label}</p>}
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm font-semibold" style={{ color: entry.color }}>
               {entry.name}: {formatCurrency(entry.value)}
@@ -135,8 +119,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
 
   return (
     <div className="space-y-6">
-      
-      {/* CABECERA Y FILTRO DE FECHAS */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -168,7 +150,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
         </div>
       </div>
 
-      {/* TARJETAS GLOBALES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="flex items-center gap-4 p-5 shadow-sm border-l-4 border-emerald-500">
           <div className="p-3 bg-emerald-100 text-emerald-600 rounded-lg"><TrendingUp size={24} /></div>
@@ -193,7 +174,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
         </Card>
       </div>
 
-      {/* VISTA DE TANQUES DE COMBUSTIBLE */}
       {activeTanks.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
@@ -230,6 +210,11 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
                     />
                     <div className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-10" style={{ left: `${alertPct}%` }} title={`Alerta al ${alertPct}%`} />
                   </div>
+                  {isLow && (
+                    <p className="text-xs text-red-600 font-bold flex items-center gap-1 mt-2 animate-pulse">
+                      <AlertTriangle size={14} /> Nivel Crítico. Se requiere reabastecimiento.
+                    </p>
+                  )}
                 </Card>
               );
             })}
@@ -237,10 +222,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
         </div>
       )}
 
-      {/* SECCIÓN DE GRÁFICOS PROFESIONALES (RECHARTS) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* GRÁFICO 1: RENTABILIDAD POR VEHÍCULO (Barras) */}
         <Card className="lg:col-span-2 p-0 overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
           <div className="p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -282,7 +264,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fill: '#64748b', fontSize: 12 }}
-                    tickFormatter={(val) => `$${(val / 1000)}k`} 
+                    tickFormatter={(val: number) => `$${(val / 1000)}k`} 
                   />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }} />
                   <Legend verticalAlign="top" height={36} iconType="circle" />
@@ -294,7 +276,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
           </div>
         </Card>
 
-        {/* GRÁFICO 2: DISTRIBUCIÓN DE GASTOS (Torta / Donut) */}
         <Card className="p-0 overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
           <div className="p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -317,7 +298,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
                     dataKey="value"
                     stroke="none"
                   >
-                    {pieChartData.map((entry, index) => (
+                    {pieChartData.map((_entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -327,17 +308,15 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
                     verticalAlign="bottom" 
                     align="center"
                     iconType="circle"
-                    formatter={(value) => <span className="text-xs text-slate-600 dark:text-slate-300">{value}</span>}
+                    formatter={(value: string) => <span className="text-xs text-slate-600 dark:text-slate-300">{value}</span>}
                   />
                 </PieChart>
               </ResponsiveContainer>
             )}
           </div>
         </Card>
-
       </div>
 
-      {/* ACTIVIDAD RECIENTE */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-0 overflow-hidden shadow-sm">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
