@@ -186,7 +186,16 @@ export default function App() {
       <Sidebar view={view} setView={setView} isOpen={isSidebarOpen} setOpen={setSidebarOpen} userRole={userRole} />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header darkMode={darkMode} setDarkMode={setDarkMode} setSidebarOpen={setSidebarOpen} user={user} />
+        
+        {/* MAGIA: AQUÍ INYECTAMOS LOS DATOS AL HEADER PARA LAS ALERTAS */}
+        <Header 
+          darkMode={darkMode} 
+          setDarkMode={setDarkMode} 
+          setSidebarOpen={setSidebarOpen} 
+          user={user} 
+          units={units}
+          services={services}
+        />
         
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
@@ -198,8 +207,6 @@ export default function App() {
                 {view === 'trips' && <TripsView trips={trips} clients={clients} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
                 {view === 'settlements' && <SettlementsView units={units} trips={trips} clients={clients} settlements={settlements} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
                 {view === 'expenses' && <ExpensesView expenses={expenses} units={units} onSave={handleSaveItem} onDelete={handleDeleteItem} />}
-                
-                {/* VISTA DE REPORTES */}
                 {view === 'reports' && <ReportsView units={units} trips={trips} expenses={expenses} fuel={fuel} services={services} />}
                 
                 {view === 'clients' && (
@@ -221,7 +228,6 @@ export default function App() {
               </>
             )}
 
-            {/* Mantenimiento: Accesible para todos */}
             {view === 'maintenance' && (
               <MaintenanceView 
                 units={units} services={services} fuel={fuel} currentUserEmail={user.email || ''}
@@ -229,7 +235,6 @@ export default function App() {
               />
             )}
 
-            {/* Panel de Administrador: Solo para Admin */}
             {userRole === 'administrador' && view === 'admin' && (
               <AdminView users={userProfiles} onSave={handleSaveItem} />
             )}
