@@ -38,11 +38,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     try { return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); } catch (e) { return dateStr; }
   };
 
-  const formatDateTime = (ts: any) => {
-    if (!ts) return '';
-    try { return new Date(ts).toLocaleString('es-AR'); } catch (e) { return ''; }
-  };
-
   const handleOpenUnit = (unit: TransportUnit) => {
     setSelectedUnit(unit);
     setActiveTab(unit.type === 'tanque' ? 'tank_add' : 'km');
@@ -287,7 +282,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
 
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Origen del Combustible</label>
-                    {/* AQUÍ ESTABA EL PROBLEMA: Le quité el atributo "required" para que deje guardar si cargas afuera */}
                     <select name="sourceTankId" className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                       <option value="">Estación de Servicio Externa (YPF, Axion, etc)</option>
                       {tanks.length > 0 && <optgroup label="Surtidores Internos">
