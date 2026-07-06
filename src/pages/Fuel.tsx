@@ -43,6 +43,15 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
     const total = liters * pricePerLiter;
     const sourceTankId = fd.get('sourceTankId') as string;
     
+    // MAGIA: Descontar del tanque si es una carga nueva y se seleccionó el tanque
+    if (sourceTankId && sourceTankId !== '' && !editingItem) {
+      const tank = units.find(u => u.id === sourceTankId);
+      if (tank) {
+        const newLevel = Math.max(0, (tank.currentFuel || 0) - liters);
+        onSave('units', { ...tank, currentFuel: newLevel });
+      }
+    }
+
     onSave('fuel', {
       ...editingItem,
       date: fd.get('date'),
@@ -72,7 +81,7 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
     }
   };
 
-  const tanks = units.filter(u => u.type === 'tanque');
+  const tanks = units.filter(u => u.type === 'tanque' && u.status === 'activo');
 
   return (
     <div className="space-y-6">
@@ -180,7 +189,7 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Unidad que recibe</label>
             <select name="unitId" defaultValue={editingItem?.unitId || ''} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white" required>
               <option value="">Seleccione una unidad...</option>
-              {units.map(u => <option key={u.id} value={u.id}>{u.name} ({u.plate})</option>)}
+              {units.filter(u => u.type !== 'tanque').map(u => <option key={u.id} value={u.id}>{u.name} ({u.plate})</option>)}
             </select>
           </div>
 
@@ -189,7 +198,7 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
             <select name="sourceTankId" defaultValue={editingItem?.sourceTankId || ''} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
               <option value="">Estación de Servicio Externa (YPF, Axion, etc)</option>
               {tanks.length > 0 && <optgroup label="Surtidores Internos Propios">
-                {tanks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {tanks.map(t => <option key={t.id} value={t.id}>{t.name} (Disp: {t.currentFuel || 0} Lts)</option>)}
               </optgroup>}
             </select>
           </div>
