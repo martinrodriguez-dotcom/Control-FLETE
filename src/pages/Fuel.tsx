@@ -7,30 +7,41 @@ import { Input } from '../components/ui/Input';
 import { FuelLoad, TransportUnit } from '../types';
 
 interface FuelProps {
-  fuel: FuelLoad[];
-  units: TransportUnit[];
+  fuel?: FuelLoad[];
+  units?: TransportUnit[];
   onSave: (collectionName: string, data: any) => void;
   onDelete: (collectionName: string, id: string) => void;
 }
 
-export const FuelView: React.FC<FuelProps> = ({ fuel, units, onSave, onDelete }) => {
+export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, onDelete }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<FuelLoad | null>(null);
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val || 0);
-  const formatDate = (dateStr: string) => {
-    try { return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); } catch { return dateStr; }
+  const formatCurrency = (val: any) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(val) || 0);
+  
+  const formatDate = (dateStr: any) => {
+    if (!dateStr) return 'Sin fecha';
+    try { 
+      return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); 
+    } catch { 
+      return 'Fecha inválida'; 
+    }
   };
 
-  const getUnitName = (id: string) => units.find(u => u.id === id)?.name || 'Desconocida';
+  const getUnitName = (id: string | null | undefined) => {
+    if (!id) return 'Desconocida';
+    const unit = units.find(u => u.id === id);
+    return unit ? unit.name : 'Desconocida';
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const fd = new FormData(e.target as HTMLFormElement);
     
-    const liters = Number(fd.get('liters'));
-    const pricePerLiter = Number(fd.get('pricePerLiter'));
+    const liters = Number(fd.get('liters')) || 0;
+    const pricePerLiter = Number(fd.get('pricePerLiter')) || 0;
     const total = liters * pricePerLiter;
+    const sourceTankId = fd.get('sourceTankId') as string;
     
     onSave('fuel', {
       ...editingItem,
@@ -39,30 +50,29 @@ export const FuelView: React.FC<FuelProps> = ({ fuel, units, onSave, onDelete })
       liters,
       pricePerLiter,
       total,
-      station: fd.get('station'),
-      currentKm: Number(fd.get('currentKm')),
-      sourceTankId: fd.get('sourceTankId') || null
+      station: sourceTankId ? 'Tanque Interno Propio' : fd.get('station'),
+      currentKm: Number(fd.get('currentKm')) || 0,
+      sourceTankId: sourceTankId || null
     });
     
     setModalOpen(false);
     setEditingItem(null);
   };
 
-  // Botón rápido para cargar costos de despachos rápidos de Mantenimiento
   const handleLoadCost = (item: FuelLoad) => {
-    const priceStr = window.prompt(`Ingresa el PRECIO POR LITRO abonado por los ${item.liters} Lts:`);
+    const priceStr = window.prompt(`Ingresa el PRECIO POR LITRO abonado por los ${item.liters || 0} Lts:`);
     if (priceStr) {
       const price = Number(priceStr);
       if (!isNaN(price) && price > 0) {
-        onSave('fuel', { ...item, pricePerLiter: price, total: price * item.liters });
+        const total = price * (item.liters || 0);
+        onSave('fuel', { ...item, pricePerLiter: price, total: total });
       } else {
-        alert('Precio inválido.');
+        alert('Precio inválido. Debe ser un número mayor a cero.');
       }
     }
   };
 
   const tanks = units.filter(u => u.type === 'tanque');
-  const vehicles = units.filter(u => u.type !== 'tanque');
 
   return (
     <div className="space-y-6">
@@ -93,31 +103,31 @@ export const FuelView: React.FC<FuelProps> = ({ fuel, units, onSave, onDelete })
             </thead>
             <tbody>
               {fuel.map((item) => {
-                const isFromTank = !!item.sourceTankId;
-                const isPendingCost = !isFromTank && item.total === 0;
+                const isFromTank = Boolean(item.sourceTankId);
+                const isPendingCost = !isFromTank && (!item.total || item.total === 0);
 
                 return (
                   <tr key={item.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4">{formatDate(item.date)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{formatDate(item.date)}</td>
                     <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
                       {getUnitName(item.unitId)}
-                      <span className="block text-xs text-slate-400 font-normal mt-0.5">{item.currentKm ? `${item.currentKm} km` : ''}</span>
+                      {item.currentKm ? <span className="block text-xs text-slate-400 font-normal mt-0.5">{item.currentKm} km/hs</span> : null}
                     </td>
                     <td className="px-6 py-4">
                       {isFromTank ? (
-                        <span className="flex items-center gap-1.5 text-orange-600 font-semibold text-xs bg-orange-50 px-2 py-1 rounded-md w-fit">
-                          <Database size={14} /> {getUnitName(item.sourceTankId!)}
+                        <span className="flex items-center gap-1.5 text-orange-600 font-semibold text-xs bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-md w-fit">
+                          <Database size={14} /> {getUnitName(item.sourceTankId)}
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-1 rounded-md w-fit">
+                        <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md w-fit">
                           <Droplets size={14} /> {item.station || 'Estación Externa'}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-900 dark:text-white">{item.liters} L</td>
+                    <td className="px-6 py-4 text-right font-bold text-slate-900 dark:text-white">{item.liters || 0} L</td>
                     <td className="px-6 py-4 text-right">
                       {isFromTank ? (
-                        <span className="text-slate-400 text-xs italic">Abonado en tanque</span>
+                        <span className="text-slate-400 text-xs italic">Stock Propio</span>
                       ) : isPendingCost ? (
                         <span className="flex items-center justify-end gap-1 text-red-600 font-bold text-xs">
                           <AlertCircle size={14} /> PENDIENTE
@@ -129,7 +139,7 @@ export const FuelView: React.FC<FuelProps> = ({ fuel, units, onSave, onDelete })
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right space-x-2">
+                    <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                       {isPendingCost ? (
                         <Button onClick={() => handleLoadCost(item)} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs rounded-lg shadow-sm">
                           Cargar Precio
@@ -188,10 +198,10 @@ export const FuelView: React.FC<FuelProps> = ({ fuel, units, onSave, onDelete })
           
           <div className="grid grid-cols-2 gap-4">
             <Input label="Litros Cargados" name="liters" type="number" defaultValue={editingItem?.liters || ''} required />
-            <Input label="Precio por Litro ($)" name="pricePerLiter" type="number" defaultValue={editingItem?.pricePerLiter || ''} required />
+            <Input label="Precio por Litro ($)" name="pricePerLiter" type="number" defaultValue={editingItem?.pricePerLiter || ''} />
           </div>
 
-          <Input label="KM / Horas de la Unidad" name="currentKm" type="number" defaultValue={editingItem?.currentKm || ''} required />
+          <Input label="KM / Horas de la Unidad" name="currentKm" type="number" defaultValue={editingItem?.currentKm || ''} />
 
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="ghost" type="button" onClick={() => { setModalOpen(false); setEditingItem(null); }}>Cancelar</Button>
