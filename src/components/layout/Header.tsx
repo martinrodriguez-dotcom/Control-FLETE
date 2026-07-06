@@ -38,7 +38,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   // --- MOTOR AUTOMÁTICO DE ALERTAS ---
   const generateAlerts = () => {
-    const newAlerts = [];
+    // CORRECCIÓN: Le aclaramos a TypeScript que es un array que acepta cualquier estructura
+    const newAlerts: any[] = [];
 
     // 1. Alertas de Combustible en Tanques
     const tanks = units.filter(u => u.type === 'tanque' && u.status === 'activo');
