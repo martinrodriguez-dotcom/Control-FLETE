@@ -21,9 +21,15 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
   // Estado para controlar qué unidades están expandidas (desplegadas)
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
 
+  // Estados para los campos que se autocompletan mágicamente
+  const [autoDestination, setAutoDestination] = useState('');
+  const [autoKm, setAutoKm] = useState<number | ''>('');
+
   // Utilidades de formato
-  const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' });
+  const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val || 0);
+  const formatDate = (dateStr: string) => {
+    try { return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); } catch { return dateStr; }
+  };
 
   // Alternar el despliegue de una unidad
   const toggleUnit = (unitId: string) => {
@@ -33,17 +39,63 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     }));
   };
 
+  // MAGIA 1: Escuchar cuando se elige un cliente y autocompletar destino y KMs
+  const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const clientId = e.target.value;
+    const client = clients.find(c => c.id === clientId);
+    
+    if (client && client.distance) {
+      setAutoDestination(client.address || client.company || '');
+      setAutoKm(Number(client.distance) * 2); // Distancia x2 (Ida y Vuelta)
+    } else if (client) {
+      setAutoDestination(client.address || client.company || '');
+      setAutoKm('');
+    } else {
+      setAutoDestination('');
+      setAutoKm('');
+    }
+  };
+
+  // Función unificada para abrir el modal limpio o con datos
+  const handleOpenModal = (item?: Partial<Trip>) => {
+    if (item && item.id) {
+      setEditingItem(item);
+      setAutoDestination(item.destination || '');
+      setAutoKm(item.km || '');
+    } else {
+      setEditingItem(null);
+      setAutoDestination('');
+      setAutoKm('');
+    }
+    setModalOpen(true);
+  };
+
   // Lógica para enviar el formulario
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const fd = new FormData(e.target as HTMLFormElement);
     const data = Object.fromEntries(fd.entries());
     
+    const newKm = Number(data.km) || 0;
+    const unitId = data.unitId as string;
+
+    // MAGIA 2: Actualizar el odómetro del camión automáticamente
+    const oldKm = editingItem?.km ? Number(editingItem.km) : 0;
+    const kmDifference = newKm - oldKm;
+
+    if (kmDifference !== 0 && unitId) {
+      const unit = units.find(u => u.id === unitId);
+      if (unit) {
+        const newTotalKm = (unit.currentKm || 0) + kmDifference;
+        onSave('units', { ...unit, currentKm: newTotalKm });
+      }
+    }
+
     const payload = {
       ...editingItem,
       ...data,
-      value: Number(data.value),
-      km: Number(data.km)
+      value: Number(data.value) || 0,
+      km: newKm
     };
 
     onSave('trips', payload);
@@ -54,29 +106,27 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
   // Lógica para duplicar un viaje
   const handleDuplicate = (trip: Trip) => {
     const { id, createdAt, ...tripData } = trip; 
-    setEditingItem(tripData);
-    setModalOpen(true);
+    handleOpenModal(tripData);
   };
 
   // Opciones para los selectores
-  const clientOptions = clients.map(c => ({ label: c.company || c.name, value: c.id }));
-  const unitOptions = units.map(u => ({ label: `${u.name} (${u.plate})`, value: u.id }));
+  const unitOptions = units.filter(u => u.type !== 'tanque').map(u => ({ label: `${u.name} (${u.plate})`, value: u.id }));
 
   // --- CÁLCULOS GLOBALES PARA EL RESUMEN ---
-  const totalRevenue = trips.reduce((acc, t) => acc + Number(t.value), 0);
-  const pendingRevenue = trips.filter(t => t.paymentStatus === 'pendiente').reduce((acc, t) => acc + Number(t.value), 0);
+  const totalRevenue = trips.reduce((acc, t) => acc + Number(t.value || 0), 0);
+  const pendingRevenue = trips.filter(t => t.paymentStatus === 'pendiente').reduce((acc, t) => acc + Number(t.value || 0), 0);
 
   // Agrupar viajes por unidad, ordenándolos estrictamente por fecha (más reciente primero)
   const tripsByUnit = units.map(unit => {
     const unitTrips = trips
       .filter(t => t.unitId === unit.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // ORDENADO POR FECHA
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const unitRevenue = unitTrips.reduce((acc, t) => acc + Number(t.value), 0);
+    const unitRevenue = unitTrips.reduce((acc, t) => acc + Number(t.value || 0), 0);
     return { unit, trips: unitTrips, unitRevenue };
   }).filter(group => group.trips.length > 0);
 
-  // Viajes huérfanos (si se borró una unidad) ordenados por fecha
+  // Viajes huérfanos ordenados por fecha
   const orphanTrips = trips
     .filter(t => !units.find(u => u.id === t.unitId))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -90,7 +140,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Gestión de Viajes</h2>
           <p className="text-slate-500 dark:text-slate-400">Control operativo y facturación por unidad</p>
         </div>
-        <Button icon={Plus} onClick={() => { setEditingItem({}); setModalOpen(true); }}>
+        <Button icon={Plus} onClick={() => handleOpenModal()}>
           Registrar Viaje
         </Button>
       </div>
@@ -144,7 +194,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                 key={group.unit.id} 
                 className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700/70 shadow-sm overflow-hidden transition-all duration-200"
               >
-                {/* CABECERA SELECCIONABLE (ACORDEÓN) */}
                 <button
                   onClick={() => toggleUnit(group.unit.id)}
                   className="w-full p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors text-left outline-none"
@@ -175,7 +224,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                   </div>
                 </button>
 
-                {/* CONTENIDO DESPLEGABLE (TABLA DE VIAJES) */}
                 {isOpen && (
                   <div className="border-t border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 duration-150">
                     <div className="overflow-x-auto">
@@ -185,6 +233,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                             <th className="px-4 py-3 font-medium">Fecha</th>
                             <th className="px-4 py-3 font-medium">Ruta (Origen - Destino)</th>
                             <th className="px-4 py-3 font-medium">Cliente</th>
+                            <th className="px-4 py-3 font-medium text-right">Kilómetros</th>
                             <th className="px-4 py-3 font-medium text-right">Valor</th>
                             <th className="px-4 py-3 font-medium text-center">Estado</th>
                             <th className="px-4 py-3 font-medium text-right">Acciones</th>
@@ -203,8 +252,9 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                                   {t.notes && <div className="text-xs text-slate-400 mt-0.5 font-normal italic">Obs: {t.notes}</div>}
                                 </td>
                                 <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{client?.company || client?.name || 'N/A'}</td>
+                                <td className="px-4 py-3 text-right font-mono text-xs">{t.km || 0} km</td>
                                 <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">
-                                  {formatCurrency(t.value)}
+                                  {formatCurrency(Number(t.value) || 0)}
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
@@ -216,9 +266,9 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 text-right whitespace-nowrap">
-                                  <Button variant="ghost" icon={Copy} onClick={() => handleDuplicate(t)} className="p-1.5 text-blue-500 mr-1" title="Duplicar" />
-                                  <Button variant="ghost" icon={Edit2} onClick={() => { setEditingItem(t); setModalOpen(true); }} className="p-1.5 mr-1" title="Editar" />
-                                  <Button variant="ghost" icon={Trash2} onClick={() => onDelete('trips', t.id)} className="p-1.5 text-red-500" title="Eliminar" />
+                                  <Button variant="ghost" icon={Copy} onClick={() => handleDuplicate(t as Trip)} className="p-1.5 text-blue-500 mr-1" title="Duplicar" />
+                                  <Button variant="ghost" icon={Edit2} onClick={() => handleOpenModal(t)} className="p-1.5 mr-1" title="Editar" />
+                                  <Button variant="ghost" icon={Trash2} onClick={() => onDelete('trips', t.id!)} className="p-1.5 text-red-500" title="Eliminar" />
                                 </td>
                               </tr>
                             );
@@ -247,10 +297,11 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                     <tr key={t.id} className="border-b last:border-0 dark:border-slate-700">
                       <td className="px-4 py-3 font-medium">{formatDate(t.date)}</td>
                       <td className="px-4 py-3 font-semibold">{t.origin} → {t.destination}</td>
-                      <td className="px-4 py-3 text-right font-bold">{formatCurrency(t.value)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs">{t.km || 0} km</td>
+                      <td className="px-4 py-3 text-right font-bold">{formatCurrency(Number(t.value) || 0)}</td>
                       <td className="px-4 py-3 text-right">
-                        <Button variant="ghost" icon={Edit2} onClick={() => { setEditingItem(t); setModalOpen(true); }} className="p-1" />
-                        <Button variant="ghost" icon={Trash2} onClick={() => onDelete('trips', t.id)} className="p-1 text-red-500" />
+                        <Button variant="ghost" icon={Edit2} onClick={() => handleOpenModal(t)} className="p-1" />
+                        <Button variant="ghost" icon={Trash2} onClick={() => onDelete('trips', t.id!)} className="p-1 text-red-500" />
                       </td>
                     </tr>
                   ))}
@@ -269,15 +320,42 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
       >
         <form onSubmit={handleSave}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Fecha" name="date" type="date" defaultValue={editingItem?.date} required />
+            <Input label="Fecha" name="date" type="date" defaultValue={editingItem?.date || new Date().toISOString().split('T')[0]} required />
             <Input label="Unidad Asignada" name="unitId" type="select" options={unitOptions} defaultValue={editingItem?.unitId} required />
-            <Input label="Cliente" name="clientId" type="select" options={clientOptions} defaultValue={editingItem?.clientId} required />
+            
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cliente</label>
+              <select 
+                name="clientId" 
+                defaultValue={editingItem?.clientId || ''} 
+                onChange={handleClientChange}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                required
+              >
+                <option value="">Seleccione el cliente a facturar...</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+              </select>
+            </div>
+            
             <Input label="Estado de Cobro" name="paymentStatus" type="select" defaultValue={editingItem?.paymentStatus || 'pendiente'} options={[{label: 'Pendiente', value: 'pendiente'}, {label: 'Cobrado', value: 'cobrado'}]} required />
             
             <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
-              <Input label="Origen" name="origin" defaultValue={editingItem?.origin} required />
-              <Input label="Destino" name="destination" defaultValue={editingItem?.destination} required />
-              <Input label="Distancia (km)" name="km" type="number" defaultValue={editingItem?.km} required />
+              <Input label="Origen" name="origin" defaultValue={editingItem?.origin || 'Depósito Central'} required />
+              <Input 
+                label="Destino" 
+                name="destination" 
+                value={autoDestination} 
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoDestination(e.target.value)} 
+                required 
+              />
+              <Input 
+                label="Distancia Total (km Ida y Vuelta)" 
+                name="km" 
+                type="number" 
+                value={autoKm} 
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoKm(e.target.value ? Number(e.target.value) : '')} 
+                required 
+              />
               <Input label="Valor Cobrado ($)" name="value" type="number" defaultValue={editingItem?.value} required />
             </div>
 
