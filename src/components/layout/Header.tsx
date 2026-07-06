@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Menu, Moon, Sun, LogOut, User as UserIcon, Bell, ShieldAlert, AlertTriangle, Wrench, CheckCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Menu, Moon, Sun, Bell, LogOut, User as UserIcon, AlertTriangle, ShieldAlert, Info, Settings } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { User } from 'firebase/auth';
 import { TransportUnit, ServiceRecord } from '../../types';
@@ -16,201 +16,224 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ 
   darkMode, setDarkMode, setSidebarOpen, user, units = [], services = [] 
 }) => {
-  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
-  const alertsRef = useRef<HTMLDivElement>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  
+  const profileRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
 
-  // Cerrar el menú de alertas al hacer clic afuera
+  // Cerrar menús al hacer clic afuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (alertsRef.current && !alertsRef.current.contains(event.target as Node)) {
-        setIsAlertsOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setIsNotificationsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- MOTOR DE ALERTAS INTELIGENTES ---
-  const alerts = useMemo(() => {
-    const newAlerts: any[] = [];
-    const now = new Date();
-    
-    // Fecha de control (5 días en el futuro)
-    const fiveDaysFromNow = new Date();
-    fiveDaysFromNow.setDate(now.getDate() + 5);
+  // --- MOTOR AUTOMÁTICO DE ALERTAS ---
+  const generateAlerts = () => {
+    const newAlerts = [];
 
-    units.forEach(unit => {
-      if (unit.status !== 'activo') return; // Ignorar inactivos
+    // 1. Alertas de Combustible en Tanques
+    const tanks = units.filter(u => u.type === 'tanque' && u.status === 'activo');
+    tanks.forEach(tank => {
+      const capacity = tank.fuelCapacity || 1;
+      const current = tank.currentFuel || 0;
+      const alertPct = tank.fuelAlertPercentage || 15;
+      const currentPct = (current / capacity) * 100;
 
-      // 1. ALERTA DE SEGUROS (Solo vehículos)
-      if (unit.type !== 'tanque' && unit.insuranceExpiry) {
-        // Asegurarnos de que tome la fecha correctamente sin problemas de zona horaria
-        const expiryParts = unit.insuranceExpiry.split('-');
-        const expiryDate = new Date(Number(expiryParts[0]), Number(expiryParts[1]) - 1, Number(expiryParts[2]));
-        
-        if (expiryDate <= fiveDaysFromNow) {
-          const isExpired = expiryDate < now;
+      if (currentPct <= alertPct) {
+        newAlerts.push({
+          id: `fuel-${tank.id}`,
+          type: 'critical',
+          title: 'Nivel Crítico de Gasoil',
+          message: `El tanque ${tank.name} está al ${currentPct.toFixed(0)}% (${current} Lts restantes).`,
+          icon: AlertTriangle,
+          color: 'text-red-500',
+          bg: 'bg-red-50 dark:bg-red-900/20'
+        });
+      }
+    });
+
+    // 2. Alertas de Mantenimiento (Service)
+    const vehicles = units.filter(u => u.type !== 'tanque' && u.status === 'activo');
+    vehicles.forEach(vehicle => {
+      const vServices = services.filter(s => s.unitId === vehicle.id && s.type === 'service').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const lastService = vServices[0];
+      const currentKm = vehicle.currentKm || 0;
+
+      if (lastService && lastService.serviceInterval) {
+        const nextServiceKm = lastService.currentKmOrHours + lastService.serviceInterval;
+        const kmRemaining = nextServiceKm - currentKm;
+
+        if (kmRemaining <= 0) {
           newAlerts.push({
-            id: `ins-${unit.id}`,
-            type: isExpired ? 'danger' : 'warning',
+            id: `service-overdue-${vehicle.id}`,
+            type: 'critical',
+            title: 'Service Vencido',
+            message: `La unidad ${vehicle.name} superó el kilometraje máximo para su mantenimiento.`,
             icon: ShieldAlert,
-            title: 'Seguro Vehicular',
-            message: isExpired 
-              ? `El seguro de ${unit.name} VENCIÓ el ${expiryDate.toLocaleDateString('es-AR')}.` 
-              : `El seguro de ${unit.name} vence pronto (${expiryDate.toLocaleDateString('es-AR')}).`
+            color: 'text-red-500',
+            bg: 'bg-red-50 dark:bg-red-900/20'
           });
-        }
-      }
-
-      // 2. ALERTA DE TANQUES
-      if (unit.type === 'tanque') {
-        const capacity = unit.fuelCapacity || 1;
-        const current = unit.currentFuel || 0;
-        const alertPct = unit.fuelAlertPercentage || 15;
-        const pct = (current / capacity) * 100;
-        
-        if (pct <= alertPct) {
+        } else if (kmRemaining <= 1000) { 
           newAlerts.push({
-            id: `tank-${unit.id}`,
-            type: 'danger',
-            icon: AlertTriangle,
-            title: 'Combustible Crítico',
-            message: `El tanque ${unit.name} está al ${pct.toFixed(0)}% (${current} Lts).`
+            id: `service-warning-${vehicle.id}`,
+            type: 'warning',
+            title: 'Service Próximo',
+            message: `La unidad ${vehicle.name} debe realizar service en ${kmRemaining} km.`,
+            icon: Info,
+            color: 'text-orange-500',
+            bg: 'bg-orange-50 dark:bg-orange-900/20'
           });
-        }
-      }
-
-      // 3. ALERTA DE MANTENIMIENTO (Solo vehículos)
-      if (unit.type !== 'tanque') {
-        const unitServices = services.filter(s => s.unitId === unit.id && s.type === 'service').sort((a,b) => b.createdAt - a.createdAt);
-        if (unitServices.length > 0) {
-          const lastService = unitServices[0];
-          if (lastService.serviceInterval) {
-            const nextServiceAt = lastService.currentKmOrHours + lastService.serviceInterval;
-            const currentKm = unit.currentKm || 0;
-            const remaining = nextServiceAt - currentKm;
-            
-            // Avisar cuando falten 500 km/hs o menos
-            if (remaining <= 500) {
-              const isPastDue = remaining < 0;
-              newAlerts.push({
-                id: `maint-${unit.id}`,
-                type: isPastDue ? 'danger' : 'warning',
-                icon: Wrench,
-                title: 'Service Requerido',
-                message: isPastDue 
-                  ? `${unit.name} está PASADO de service por ${Math.abs(remaining)} km/hs.` 
-                  : `${unit.name} requiere service en ${remaining} km/hs.`
-              });
-            }
-          }
         }
       }
     });
 
     return newAlerts;
-  }, [units, services]);
+  };
 
-  const unreadCount = alerts.length;
+  const alerts = generateAlerts();
+  const criticalAlertsCount = alerts.filter(a => a.type === 'critical').length;
 
   return (
-    <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 h-16 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20">
-      <div className="flex items-center">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 -ml-2 mr-2 md:hidden text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-        >
-          <Menu size={24} />
-        </button>
-        <h1 className="text-xl font-bold text-slate-800 dark:text-white hidden sm:block">
-          LogisFlow <span className="text-blue-600">Enterprise</span>
-        </h1>
-      </div>
-
-      <div className="flex items-center space-x-2 sm:space-x-4">
+    <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 shadow-sm transition-colors duration-300">
+      <div className="flex items-center justify-between px-4 sm:px-6 h-20">
         
-        {/* CAMPANITA DE ALERTAS */}
-        <div className="relative" ref={alertsRef}>
-          <button
-            onClick={() => setIsAlertsOpen(!isAlertsOpen)}
-            className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors relative"
+        {/* BOTÓN MENÚ MÓVIL */}
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden p-2.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:text-white dark:hover:bg-slate-800 transition-all"
           >
-            <Bell size={20} className={unreadCount > 0 ? "text-blue-600 animate-pulse" : ""} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>
-            )}
+            <Menu size={24} />
+          </button>
+        </div>
+
+        {/* ACCIONES Y PERFIL */}
+        <div className="flex items-center gap-3 sm:gap-5">
+          
+          {/* BOTÓN TEMA CLARO/OSCURO */}
+          <button 
+            onClick={() => setDarkMode(!darkMode)}
+            className="p-2.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-slate-800 transition-all"
+            title={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          >
+            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
-          {/* DESPLEGABLE DE ALERTAS */}
-          {isAlertsOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-                <h3 className="font-bold text-slate-900 dark:text-white">Centro de Alertas</h3>
-                <span className="bg-blue-100 text-blue-700 text-xs font-black px-2 py-1 rounded-full">{unreadCount}</span>
-              </div>
-              
-              <div className="max-h-80 overflow-y-auto">
-                {alerts.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 flex flex-col items-center">
-                    <CheckCircle size={32} className="text-emerald-500 mb-2 opacity-50" />
-                    <p className="text-sm">Todo está en orden.</p>
-                    <p className="text-xs mt-1">No hay alertas pendientes.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                    {alerts.map(alert => {
+          {/* CAMPANA DE NOTIFICACIONES */}
+          <div className="relative" ref={notificationsRef}>
+            <button 
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              className="relative p-2.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-slate-800 transition-all"
+            >
+              <Bell size={20} />
+              {alerts.length > 0 && (
+                <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${criticalAlertsCount > 0 ? 'bg-red-400' : 'bg-orange-400'}`}></span>
+                  <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${criticalAlertsCount > 0 ? 'bg-red-500' : 'bg-orange-500'}`}></span>
+                </span>
+              )}
+            </button>
+
+            {/* DROPDOWN NOTIFICACIONES */}
+            {isNotificationsOpen && (
+              <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] border border-slate-100 dark:border-slate-700 py-2 origin-top-right animate-in fade-in slide-in-from-top-2">
+                <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                  <h3 className="font-bold text-slate-900 dark:text-white">Centro de Alertas</h3>
+                  <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400 text-xs px-2 py-1 rounded-full font-bold">
+                    {alerts.length} nuevas
+                  </span>
+                </div>
+                
+                <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+                  {alerts.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-sm">
+                      <div className="bg-slate-50 dark:bg-slate-900 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Bell size={24} className="text-slate-300" />
+                      </div>
+                      No hay alertas operativas en este momento.
+                    </div>
+                  ) : (
+                    alerts.map((alert) => {
                       const Icon = alert.icon;
-                      const isDanger = alert.type === 'danger';
                       return (
-                        <div key={alert.id} className={`p-4 flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${isDanger ? 'bg-red-50/30 dark:bg-red-900/10' : ''}`}>
-                          <div className={`mt-0.5 p-2 rounded-full h-fit ${isDanger ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-orange-100 text-orange-600 dark:bg-orange-900/30'}`}>
-                            <Icon size={16} />
+                        <div key={alert.id} className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors flex gap-3 items-start cursor-default">
+                          <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${alert.bg} ${alert.color}`}>
+                            <Icon size={18} />
                           </div>
                           <div>
-                            <p className={`text-sm font-bold ${isDanger ? 'text-red-700 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
-                              {alert.title}
-                            </p>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
-                              {alert.message}
-                            </p>
+                            <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{alert.title}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-snug">{alert.message}</p>
                           </div>
                         </div>
                       );
-                    })}
-                  </div>
-                )}
+                    })
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-          title="Alternar tema"
-        >
-          {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
-
-        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
-
-        <div className="flex items-center gap-3 pl-2">
-          <div className="hidden md:block text-right">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white leading-none">
-              {user?.displayName || user?.email?.split('@')[0]}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">{user?.email}</p>
+            )}
           </div>
-          <div className="h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 flex items-center justify-center border border-blue-200 dark:border-blue-800">
-            <UserIcon size={18} />
+
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+
+          {/* MENÚ DE USUARIO */}
+          <div className="relative" ref={profileRef}>
+            <button 
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="flex items-center gap-3 p-1.5 pr-3 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+            >
+              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 h-9 w-9 rounded-full flex items-center justify-center text-white shadow-inner font-bold text-sm">
+                {user?.email?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="hidden md:block text-left">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-tight">
+                  {user?.displayName || user?.email?.split('@')[0]}
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium tracking-wide truncate max-w-[120px]">
+                  {user?.email}
+                </p>
+              </div>
+            </button>
+
+            {/* DROPDOWN USUARIO */}
+            {isProfileOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] border border-slate-100 dark:border-slate-700 py-2 origin-top-right animate-in fade-in slide-in-from-top-2">
+                <div className="px-4 py-3 mb-2 border-b border-slate-100 dark:border-slate-700 md:hidden">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                    {user?.displayName || 'Usuario'}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                </div>
+
+                <div className="px-2">
+                  <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 dark:hover:text-blue-400 rounded-lg transition-colors">
+                    <UserIcon size={16} /> Mi Perfil
+                  </button>
+                  <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 dark:hover:text-blue-400 rounded-lg transition-colors">
+                    <Settings size={16} /> Preferencias
+                  </button>
+                  
+                  <div className="h-px bg-slate-100 dark:bg-slate-700 my-2 mx-2"></div>
+                  
+                  <button 
+                    onClick={() => auth.signOut()}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
+                  >
+                    <LogOut size={16} /> Cerrar Sesión
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <button
-            onClick={() => auth.signOut()}
-            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors ml-1"
-            title="Cerrar sesión"
-          >
-            <LogOut size={18} />
-          </button>
+
         </div>
       </div>
     </header>
