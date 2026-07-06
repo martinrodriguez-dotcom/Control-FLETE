@@ -41,7 +41,8 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
     const date = new Date(itemDate);
     const now = new Date();
     
-    if (period === 'month') return return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    // AQUÍ ESTABA EL ERROR: Había un "return return"
+    if (period === 'month') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     if (period === 'last_month') {
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
@@ -222,7 +223,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
         </div>
       )}
 
-      {/* SECCIÓN DE GRÁFICOS CORREGIDA (ALTURAS FIJAS) */}
+      {/* SECCIÓN DE GRÁFICOS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* GRÁFICO 1: BARRAS */}
@@ -256,7 +257,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
             </div>
           </div>
           
-          {/* EL TRUCO: Altura fija de 350px */}
           <div className="p-5 w-full" style={{ height: '350px' }}>
             {barChartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500">No hay datos para mostrar.</div>
@@ -289,7 +289,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ trips, expenses, fuel,
             </h3>
           </div>
           
-          {/* EL TRUCO: Altura fija de 350px */}
           <div className="p-5 w-full" style={{ height: '350px' }}>
             {pieChartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500">Sin gastos registrados.</div>
