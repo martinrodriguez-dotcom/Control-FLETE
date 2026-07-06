@@ -18,20 +18,16 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<Trip> | null>(null);
   
-  // Estado para controlar qué unidades están expandidas (desplegadas)
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
 
-  // Estados para los campos que se autocompletan mágicamente
   const [autoDestination, setAutoDestination] = useState('');
   const [autoKm, setAutoKm] = useState<number | ''>('');
 
-  // Utilidades de formato
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val || 0);
   const formatDate = (dateStr: string) => {
     try { return new Date(dateStr).toLocaleDateString('es-AR', { timeZone: 'UTC' }); } catch { return dateStr; }
   };
 
-  // Alternar el despliegue de una unidad
   const toggleUnit = (unitId: string) => {
     setExpandedUnits(prev => ({
       ...prev,
@@ -39,14 +35,14 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     }));
   };
 
-  // MAGIA 1: Escuchar cuando se elige un cliente y autocompletar destino y KMs
   const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const clientId = e.target.value;
-    const client = clients.find(c => c.id === clientId);
+    // Le decimos a TypeScript que este cliente puede tener el campo 'distance'
+    const client = clients.find(c => c.id === clientId) as Client & { distance?: string | number };
     
     if (client && client.distance) {
       setAutoDestination(client.address || client.company || '');
-      setAutoKm(Number(client.distance) * 2); // Distancia x2 (Ida y Vuelta)
+      setAutoKm(Number(client.distance) * 2); 
     } else if (client) {
       setAutoDestination(client.address || client.company || '');
       setAutoKm('');
@@ -56,7 +52,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     }
   };
 
-  // Función unificada para abrir el modal limpio o con datos
   const handleOpenModal = (item?: Partial<Trip>) => {
     if (item && item.id) {
       setEditingItem(item);
@@ -70,7 +65,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     setModalOpen(true);
   };
 
-  // Lógica para enviar el formulario
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const fd = new FormData(e.target as HTMLFormElement);
@@ -79,7 +73,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     const newKm = Number(data.km) || 0;
     const unitId = data.unitId as string;
 
-    // MAGIA 2: Actualizar el odómetro del camión automáticamente
     const oldKm = editingItem?.km ? Number(editingItem.km) : 0;
     const kmDifference = newKm - oldKm;
 
@@ -103,20 +96,16 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     setEditingItem(null);
   };
 
-  // Lógica para duplicar un viaje
   const handleDuplicate = (trip: Trip) => {
     const { id, createdAt, ...tripData } = trip; 
     handleOpenModal(tripData);
   };
 
-  // Opciones para los selectores
   const unitOptions = units.filter(u => u.type !== 'tanque').map(u => ({ label: `${u.name} (${u.plate})`, value: u.id }));
 
-  // --- CÁLCULOS GLOBALES PARA EL RESUMEN ---
   const totalRevenue = trips.reduce((acc, t) => acc + Number(t.value || 0), 0);
   const pendingRevenue = trips.filter(t => t.paymentStatus === 'pendiente').reduce((acc, t) => acc + Number(t.value || 0), 0);
 
-  // Agrupar viajes por unidad, ordenándolos estrictamente por fecha (más reciente primero)
   const tripsByUnit = units.map(unit => {
     const unitTrips = trips
       .filter(t => t.unitId === unit.id)
@@ -126,7 +115,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     return { unit, trips: unitTrips, unitRevenue };
   }).filter(group => group.trips.length > 0);
 
-  // Viajes huérfanos ordenados por fecha
   const orphanTrips = trips
     .filter(t => !units.find(u => u.id === t.unitId))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -134,7 +122,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
   return (
     <div className="space-y-6">
       
-      {/* CABECERA */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Gestión de Viajes</h2>
@@ -145,7 +132,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
         </Button>
       </div>
 
-      {/* TARJETAS DE RESUMEN GLOBAL */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="flex items-center gap-4 p-4 shadow-sm">
           <div className="p-3 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg">
@@ -178,7 +164,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
         </Card>
       </div>
 
-      {/* LISTADO DE VIAJES AGRUPADOS CON DESPLEGABLES */}
       <div className="space-y-3">
         {tripsByUnit.length === 0 && orphanTrips.length === 0 ? (
           <Card className="text-center py-12 shadow-sm">
@@ -283,7 +268,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
           })
         )}
 
-        {/* VIAJES HUÉRFANOS (Unidad eliminada) */}
         {orphanTrips.length > 0 && (
           <Card className="overflow-hidden p-0 border-t-4 border-t-slate-400 shadow-sm opacity-80">
             <div className="bg-slate-100 dark:bg-slate-800/80 p-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3">
@@ -312,7 +296,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
         )}
       </div>
 
-      {/* MODAL DEL FORMULARIO */}
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setModalOpen(false)} 
@@ -345,7 +328,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                 label="Destino" 
                 name="destination" 
                 value={autoDestination} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoDestination(e.target.value)} 
+                onChange={(e: any) => setAutoDestination(e.target.value)} 
                 required 
               />
               <Input 
@@ -353,7 +336,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                 name="km" 
                 type="number" 
                 value={autoKm} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoKm(e.target.value ? Number(e.target.value) : '')} 
+                onChange={(e: any) => setAutoKm(e.target.value ? Number(e.target.value) : '')} 
                 required 
               />
               <Input label="Valor Cobrado ($)" name="value" type="number" defaultValue={editingItem?.value} required />
