@@ -188,7 +188,6 @@ export default function App() {
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         
-        {/* El Header recibe los datos de unidades y services para calcular las alertas automáticas */}
         <Header 
           darkMode={darkMode} 
           setDarkMode={setDarkMode} 
@@ -214,7 +213,13 @@ export default function App() {
                 {view === 'clients' && (
                   <SimpleCRUDView 
                     title="Clientes" collectionName="clients" data={clients} onSave={handleSaveItem} onDelete={handleDeleteItem}
-                    fields={[{key:'company', label:'Empresa'}, {key:'name', label:'Contacto'}, {key:'phone', label:'Teléfono'}, {key:'cuit', label:'CUIT'}]}
+                    fields={[
+                      {key:'company', label:'Empresa'}, 
+                      {key:'name', label:'Contacto'}, 
+                      {key:'phone', label:'Teléfono'}, 
+                      {key:'cuit', label:'CUIT'},
+                      {key:'distance', label:'Distancia (Ida)'}
+                    ]}
                     FormContent={
                       <>
                         <Input label="Razón Social" name="company" required />
@@ -223,6 +228,7 @@ export default function App() {
                         <Input label="Email" name="email" type="email" />
                         <Input label="Dirección" name="address" />
                         <Input label="CUIT" name="cuit" />
+                        <Input label="Distancia desde Depósito (KM solo ida)" name="distance" type="number" placeholder="Ej: 50" />
                       </>
                     }
                   />
@@ -230,7 +236,6 @@ export default function App() {
               </>
             )}
 
-            {/* Mantenimiento: Accesible para todos */}
             {view === 'maintenance' && (
               <MaintenanceView 
                 units={units} services={services} fuel={fuel} currentUserEmail={user.email || ''}
@@ -238,7 +243,6 @@ export default function App() {
               />
             )}
 
-            {/* Panel de Administrador: Solo para Admin */}
             {userRole === 'administrador' && view === 'admin' && (
               <AdminView users={userProfiles} onSave={handleSaveItem} />
             )}
