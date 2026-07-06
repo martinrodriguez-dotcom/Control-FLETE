@@ -36,7 +36,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     }));
   };
 
-  // MAGIA EXTRAÍDA: Función pura para traer los datos del cliente cuando la llamemos
   const applyClientData = (clientId: string) => {
     const client = clients.find(c => c.id === clientId) as Client & { distance?: string | number };
     if (client && client.distance) {
@@ -88,7 +87,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     const payload = {
       ...editingItem,
       ...data,
-      clientId: selectedClientId, // Aseguramos que guarde el cliente correcto
+      clientId: selectedClientId, 
       value: Number(data.value) || 0,
       km: newKm
     };
@@ -324,7 +323,6 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                   <option value="">Seleccione el cliente a facturar...</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
                 </select>
-                {/* BOTÓN MÁGICO PARA ACTUALIZAR KM/DESTINO DE GOLPE */}
                 {editingItem?.id && (
                   <Button 
                     type="button" 
@@ -352,7 +350,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                 label="Destino" 
                 name="destination" 
                 value={autoDestination} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoDestination(e.target.value)} 
+                onChange={(e: any) => setAutoDestination(e.target.value)} 
                 required 
               />
               <Input 
@@ -360,7 +358,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                 name="km" 
                 type="number" 
                 value={autoKm} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoKm(e.target.value ? Number(e.target.value) : '')} 
+                onChange={(e: any) => setAutoKm(e.target.value ? Number(e.target.value) : '')} 
                 required 
               />
               <Input label="Valor Cobrado ($)" name="value" type="number" defaultValue={editingItem?.value} required />
