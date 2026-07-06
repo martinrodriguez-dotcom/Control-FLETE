@@ -43,15 +43,44 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
     const total = liters * pricePerLiter;
     const sourceTankId = fd.get('sourceTankId') as string;
     
-    // MAGIA: Descontar del tanque si es una carga nueva y se seleccionó el tanque
-    if (sourceTankId && sourceTankId !== '' && !editingItem) {
-      const tank = units.find(u => u.id === sourceTankId);
-      if (tank) {
-        const newLevel = Math.max(0, (tank.currentFuel || 0) - liters);
-        onSave('units', { ...tank, currentFuel: newLevel });
+    // --- MOTOR INTELIGENTE DE INVENTARIO PARA EL TANQUE ---
+    const oldTankId = editingItem?.sourceTankId || null;
+    const oldLiters = editingItem?.liters || 0;
+    const newTankId = sourceTankId || null;
+    const newLiters = liters;
+
+    // 1. Si editaste los litros pero mantuviste el mismo tanque
+    if (oldTankId === newTankId && newTankId) {
+      const diff = newLiters - oldLiters; // Ej: Cargué 70 en vez de 50, diff = 20
+      if (diff !== 0) {
+        const tank = units.find(u => u.id === newTankId);
+        if (tank) {
+          const newLevel = Math.max(0, (tank.currentFuel || 0) - diff);
+          onSave('units', { ...tank, currentFuel: newLevel });
+        }
+      }
+    } 
+    // 2. Si cambiaste de origen (Ej: de YPF a Tanque, o de Tanque a YPF)
+    else if (oldTankId !== newTankId) {
+      // Devolver los litros al tanque original (si es que antes salía de un tanque)
+      if (oldTankId) {
+        const oldTank = units.find(u => u.id === oldTankId);
+        if (oldTank) {
+          const restoredLevel = (oldTank.currentFuel || 0) + oldLiters;
+          onSave('units', { ...oldTank, currentFuel: restoredLevel });
+        }
+      }
+      // Descontar los litros del nuevo tanque (si elegiste uno ahora)
+      if (newTankId) {
+        const newTank = units.find(u => u.id === newTankId);
+        if (newTank) {
+          const decreasedLevel = Math.max(0, (newTank.currentFuel || 0) - newLiters);
+          onSave('units', { ...newTank, currentFuel: decreasedLevel });
+        }
       }
     }
 
+    // --- GUARDAR REGISTRO FINAL DE COMBUSTIBLE ---
     onSave('fuel', {
       ...editingItem,
       date: fd.get('date'),
@@ -195,7 +224,11 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
 
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Origen del Combustible</label>
-            <select name="sourceTankId" defaultValue={editingItem?.sourceTankId || ''} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+            <select 
+              name="sourceTankId" 
+              defaultValue={editingItem ? (editingItem.sourceTankId || '') : (tanks.length > 0 ? tanks[0].id : '')} 
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+            >
               <option value="">Estación de Servicio Externa (YPF, Axion, etc)</option>
               {tanks.length > 0 && <optgroup label="Surtidores Internos Propios">
                 {tanks.map(t => <option key={t.id} value={t.id}>{t.name} (Disp: {t.currentFuel || 0} Lts)</option>)}
