@@ -51,7 +51,7 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
 
     // 1. Si editaste los litros pero mantuviste el mismo tanque
     if (oldTankId === newTankId && newTankId) {
-      const diff = newLiters - oldLiters; // Ej: Cargué 70 en vez de 50, diff = 20
+      const diff = newLiters - oldLiters; 
       if (diff !== 0) {
         const tank = units.find(u => u.id === newTankId);
         if (tank) {
@@ -60,9 +60,8 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
         }
       }
     } 
-    // 2. Si cambiaste de origen (Ej: de YPF a Tanque, o de Tanque a YPF)
+    // 2. Si cambiaste de origen
     else if (oldTankId !== newTankId) {
-      // Devolver los litros al tanque original (si es que antes salía de un tanque)
       if (oldTankId) {
         const oldTank = units.find(u => u.id === oldTankId);
         if (oldTank) {
@@ -70,7 +69,6 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
           onSave('units', { ...oldTank, currentFuel: restoredLevel });
         }
       }
-      // Descontar los litros del nuevo tanque (si elegiste uno ahora)
       if (newTankId) {
         const newTank = units.find(u => u.id === newTankId);
         if (newTank) {
@@ -112,6 +110,13 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
 
   const tanks = units.filter(u => u.type === 'tanque' && u.status === 'activo');
 
+  // --- ORDENAMIENTO CRONOLÓGICO POR FECHA OPERATIVA ---
+  const sortedFuel = [...fuel].sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return dateB - dateA; // De más nuevo a más viejo
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -140,13 +145,14 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
               </tr>
             </thead>
             <tbody>
-              {fuel.map((item) => {
+              {/* AQUÍ APLICAMOS EL ARRAY YA ORDENADO */}
+              {sortedFuel.map((item) => {
                 const isFromTank = Boolean(item.sourceTankId);
                 const isPendingCost = !isFromTank && (!item.total || item.total === 0);
 
                 return (
                   <tr key={item.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">{formatDate(item.date)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-slate-900 dark:text-white">{formatDate(item.date)}</td>
                     <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
                       {getUnitName(item.unitId)}
                       {item.currentKm ? <span className="block text-xs text-slate-400 font-normal mt-0.5">{item.currentKm} km/hs</span> : null}
@@ -194,7 +200,7 @@ export const FuelView: React.FC<FuelProps> = ({ fuel = [], units = [], onSave, o
                   </tr>
                 );
               })}
-              {fuel.length === 0 && (
+              {sortedFuel.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
                     No hay registros de combustible.
