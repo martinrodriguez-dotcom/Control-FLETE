@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { 
   PieChart, TrendingUp, TrendingDown, Truck, ChevronDown, ChevronUp, 
   Droplets, Receipt, Settings, Map, Activity, DollarSign, BarChart3, ChevronRight, Calendar, Printer 
@@ -23,7 +23,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
   const [selectedUnit, setSelectedUnit] = useState<TransportUnit | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   
-  // CAMBIO CLAVE: Ahora el filtro arranca en 'all' (Todo el Historial) por defecto
   const [period, setPeriod] = useState<string>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -69,7 +68,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
   const globalTotalCosts = globalExpenses + globalFuelCost;
   const globalNetProfit = globalRevenue - globalTotalCosts;
 
-  // Lógica pesada del Modal encapsulada y optimizada
   const getUnitDetails = (unitId: string) => {
     const uTrips = filteredTrips.filter(t => t.unitId === unitId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const uExpenses = filteredExpenses.filter(e => e.unitId === unitId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -97,24 +95,30 @@ export const ReportsView: React.FC<ReportsProps> = ({
       return acc;
     }, {} as Record<string, { total: number, items: Expense[] }>);
 
-    // --- GENERADOR DE DATOS PARA EL GRÁFICO DE LÍNEA (EVOLUCIÓN EN EL TIEMPO) ---
-    const chartMap = new Map<string, { dateLabel: string, Ingresos: number, Egresos: number, rawDate: string }>();
+    // --- CORRECCIÓN: Usando un objeto estricto en lugar de Map para evitar problemas de compilación en Netlify ---
+    type ChartItem = { dateLabel: string, Ingresos: number, Egresos: number, rawDate: string };
+    const chartDataObj: Record<string, ChartItem> = {};
 
     const processChartItem = (dateStr: string, ing: number, eg: number) => {
       if (!dateStr) return;
       try {
         const d = new Date(dateStr);
         if (isNaN(d.getTime())) return;
+        
         const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         
-        if (!chartMap.has(monthKey)) {
+        if (!chartDataObj[monthKey]) {
           const monthName = d.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
-          chartMap.set(monthKey, { dateLabel: monthName.charAt(0).toUpperCase() + monthName.slice(1), rawDate: monthKey, Ingresos: 0, Egresos: 0 });
+          chartDataObj[monthKey] = { 
+            dateLabel: monthName.charAt(0).toUpperCase() + monthName.slice(1), 
+            rawDate: monthKey, 
+            Ingresos: 0, 
+            Egresos: 0 
+          };
         }
         
-        const entry = chartMap.get(monthKey)!;
-        entry.Ingresos += ing;
-        entry.Egresos += eg;
+        chartDataObj[monthKey].Ingresos += ing;
+        chartDataObj[monthKey].Egresos += eg;
       } catch (e) { /* ignorar fechas mal formadas */ }
     };
 
@@ -122,14 +126,13 @@ export const ReportsView: React.FC<ReportsProps> = ({
     uExpenses.forEach(e => processChartItem(e.date, 0, Number(e.amount || 0)));
     uFuel.forEach(f => processChartItem(f.date, 0, Number(f.total || 0)));
 
-    const timeSeriesData = Array.from(chartMap.values()).sort((a, b) => a.rawDate.localeCompare(b.rawDate));
+    const timeSeriesData = Object.values(chartDataObj).sort((a: ChartItem, b: ChartItem) => a.rawDate.localeCompare(b.rawDate));
 
     return { uTrips, uFuel, uRevenue, uFuelTotal, uTotalCosts, uNet, totalKm, kmPerLiter, costPerKm, lastService, expensesByCategory, timeSeriesData };
   };
 
   const vehicles = units.filter(u => u.type !== 'tanque');
 
-  // Tooltip personalizado para el gráfico de línea
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -149,7 +152,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
   return (
     <div className="space-y-6 print:m-0 print:p-0">
       
-      {/* TÍTULO Y FILTROS */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -181,7 +183,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
         </div>
       </div>
 
-      {/* TARJETAS DE RESUMEN GLOBAL */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
         <Card className="p-4 border-l-4 border-emerald-500 shadow-sm">
           <p className="text-sm font-medium text-slate-500 flex items-center gap-2"><TrendingUp size={16}/> Ingresos Totales</p>
@@ -205,7 +206,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
         </Card>
       </div>
       
-      {/* GRILLA DE UNIDADES */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 print:hidden">
         {vehicles.map(unit => {
           const uTrips = filteredTrips.filter(t => t.unitId === unit.id);
@@ -251,7 +251,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
         )}
       </div>
 
-      {/* MODAL DETALLADO CON GRÁFICOS Y ACORDEONES */}
       <Modal 
         isOpen={!!selectedUnit} 
         onClose={() => setSelectedUnit(null)} 
@@ -272,14 +271,12 @@ export const ReportsView: React.FC<ReportsProps> = ({
                 </Button>
               </div>
 
-              {/* Título oculto que solo sale en PDF */}
               <div className="hidden print:block text-center mb-6">
                 <h1 className="text-2xl font-black text-slate-900">REPORTE DE RENTABILIDAD</h1>
                 <h2 className="text-lg text-slate-700">{selectedUnit.name} ({selectedUnit.plate})</h2>
-                <p className="text-sm text-slate-500 mt-1">Generado por SII PALLETS FLETE</p>
+                <p className="text-sm text-slate-500 mt-1">Generado por LogisFlow Enterprise</p>
               </div>
 
-              {/* RESUMEN FINANCIERO */}
               <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                 <div className="text-center border-r border-slate-200 dark:border-slate-700">
                   <p className="text-[10px] uppercase text-slate-400 font-bold mb-1">Ingresos Totales</p>
@@ -295,14 +292,13 @@ export const ReportsView: React.FC<ReportsProps> = ({
                 </div>
               </div>
 
-              {/* ESTADÍSTICAS TÉCNICAS */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                  <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Map size={12}/> Kilómetros Recorridos (Por Viajes)</p>
+                  <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Map size={12}/> Recorrido (Por Viajes)</p>
                   <p className="font-bold text-slate-900 dark:text-white">{formatNumber(details.totalKm)} km</p>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                  <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Droplets size={12}/> Rendimiento / Consumo</p>
+                  <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Droplets size={12}/> Rendimiento Promedio</p>
                   <p className="font-bold text-blue-600 dark:text-blue-400">{formatNumber(details.kmPerLiter)} km/L</p>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -319,7 +315,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
                 </div>
               </div>
 
-              {/* GRÁFICO DE EVOLUCIÓN TEMPORAL (Líneas) */}
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm pt-4 print:hidden">
                 <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 px-4 mb-2 flex items-center gap-2">
                   <TrendingUp size={16} className="text-blue-500" /> Evolución Financiera
@@ -346,7 +341,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
               <div className="space-y-3">
                 <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1 mt-4">Desglose de Operaciones</h4>
 
-                {/* ACORDEÓN: VIAJES */}
                 <div className="bg-white dark:bg-slate-800 rounded-lg border border-emerald-200 dark:border-emerald-800/50 overflow-hidden print:border-none print:shadow-none">
                   <button onClick={() => toggleCategory(`trips`)} className="w-full flex justify-between items-center p-3 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 transition-colors print:bg-transparent print:p-0 print:mb-2">
                     <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm">
@@ -376,7 +370,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
                   </div>
                 </div>
 
-                {/* ACORDEÓN: COMBUSTIBLE */}
                 <div className="bg-white dark:bg-slate-800 rounded-lg border border-orange-200 dark:border-orange-800/50 overflow-hidden print:border-none print:shadow-none print:mt-4">
                   <button onClick={() => toggleCategory(`fuel`)} className="w-full flex justify-between items-center p-3 bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50 transition-colors print:bg-transparent print:p-0 print:mb-2">
                     <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-bold text-sm">
@@ -406,7 +399,6 @@ export const ReportsView: React.FC<ReportsProps> = ({
                   </div>
                 </div>
 
-                {/* ACORDEONES: GASTOS */}
                 {Object.entries(details.expensesByCategory).map(([category, data]) => (
                   <div key={category} className="bg-white dark:bg-slate-800 rounded-lg border border-red-200 dark:border-red-800/50 overflow-hidden print:border-none print:shadow-none print:mt-4">
                     <button onClick={() => toggleCategory(`exp-${category}`)} className="w-full flex justify-between items-center p-3 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 transition-colors print:bg-transparent print:p-0 print:mb-2">
