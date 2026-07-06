@@ -162,7 +162,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     const safeFuel = Array.isArray(fuel) ? fuel : [];
     const unitServices = safeServices.filter(s => s.unitId === unitId).map(s => ({ ...s, collection: 'services' }));
     
-    // Captura las cargas propias del tanque, y las cargas de otros vehículos que salieron de este tanque
     const unitFuel = safeFuel.filter(f => f.unitId === unitId || f.sourceTankId === unitId).map(f => ({ ...f, collection: 'fuel', type: 'fuel_load' }));
     
     return [...unitServices, ...unitFuel].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -275,7 +274,12 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
 
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Origen del Combustible</label>
-                    <select name="sourceTankId" className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                    {/* AQUI LE PUSE EL TANQUE POR DEFECTO PARA QUE EL OPERARIO NO TENGA QUE ELEGIRLO CADA VEZ */}
+                    <select 
+                      name="sourceTankId" 
+                      defaultValue={tanks.length > 0 ? tanks[0].id : ''}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    >
                       <option value="">Estación de Servicio Externa (YPF, Axion, etc)</option>
                       {tanks.length > 0 && <optgroup label="Surtidores Internos">
                         {tanks.map(t => (
