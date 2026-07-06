@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Copy, Map, DollarSign, Clock, Truck, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, Copy, Map, DollarSign, Clock, Truck, ChevronDown, ChevronUp, Calendar, RefreshCw } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -22,6 +22,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
 
   const [autoDestination, setAutoDestination] = useState('');
   const [autoKm, setAutoKm] = useState<number | ''>('');
+  const [selectedClientId, setSelectedClientId] = useState('');
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val || 0);
   const formatDate = (dateStr: string) => {
@@ -35,11 +36,9 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     }));
   };
 
-  const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const clientId = e.target.value;
-    // Le decimos a TypeScript que este cliente puede tener el campo 'distance'
+  // MAGIA EXTRAÍDA: Función pura para traer los datos del cliente cuando la llamemos
+  const applyClientData = (clientId: string) => {
     const client = clients.find(c => c.id === clientId) as Client & { distance?: string | number };
-    
     if (client && client.distance) {
       setAutoDestination(client.address || client.company || '');
       setAutoKm(Number(client.distance) * 2); 
@@ -57,10 +56,12 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
       setEditingItem(item);
       setAutoDestination(item.destination || '');
       setAutoKm(item.km || '');
+      setSelectedClientId(item.clientId || '');
     } else {
       setEditingItem(null);
       setAutoDestination('');
       setAutoKm('');
+      setSelectedClientId('');
     }
     setModalOpen(true);
   };
@@ -87,6 +88,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     const payload = {
       ...editingItem,
       ...data,
+      clientId: selectedClientId, // Aseguramos que guarde el cliente correcto
       value: Number(data.value) || 0,
       km: newKm
     };
@@ -308,16 +310,38 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
             
             <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cliente</label>
-              <select 
-                name="clientId" 
-                defaultValue={editingItem?.clientId || ''} 
-                onChange={handleClientChange}
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                required
-              >
-                <option value="">Seleccione el cliente a facturar...</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select 
+                  name="clientId" 
+                  value={selectedClientId} 
+                  onChange={(e) => {
+                    setSelectedClientId(e.target.value);
+                    applyClientData(e.target.value);
+                  }}
+                  className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  required
+                >
+                  <option value="">Seleccione el cliente a facturar...</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+                </select>
+                {/* BOTÓN MÁGICO PARA ACTUALIZAR KM/DESTINO DE GOLPE */}
+                {editingItem?.id && (
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    onClick={() => applyClientData(selectedClientId)}
+                    className="px-3 border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800"
+                    title="Actualizar Destino y KM con los datos guardados de este cliente"
+                  >
+                    <RefreshCw size={18} className="text-blue-600 dark:text-blue-400" />
+                  </Button>
+                )}
+              </div>
+              {editingItem?.id && (
+                <p className="text-xs text-slate-500 mt-1 ml-1">
+                  Si le cambiaste la distancia al cliente, presiona <RefreshCw size={10} className="inline text-blue-500 mx-0.5"/> para recalcular.
+                </p>
+              )}
             </div>
             
             <Input label="Estado de Cobro" name="paymentStatus" type="select" defaultValue={editingItem?.paymentStatus || 'pendiente'} options={[{label: 'Pendiente', value: 'pendiente'}, {label: 'Cobrado', value: 'cobrado'}]} required />
@@ -328,7 +352,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                 label="Destino" 
                 name="destination" 
                 value={autoDestination} 
-                onChange={(e: any) => setAutoDestination(e.target.value)} 
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoDestination(e.target.value)} 
                 required 
               />
               <Input 
@@ -336,7 +360,7 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
                 name="km" 
                 type="number" 
                 value={autoKm} 
-                onChange={(e: any) => setAutoKm(e.target.value ? Number(e.target.value) : '')} 
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoKm(e.target.value ? Number(e.target.value) : '')} 
                 required 
               />
               <Input label="Valor Cobrado ($)" name="value" type="number" defaultValue={editingItem?.value} required />
