@@ -53,7 +53,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     });
   };
 
-  // --- 1. GUARDAR KM ---
   const handleSaveKm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUnit) return;
@@ -67,7 +66,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     setSelectedUnit(null);
   };
 
-  // --- 2. GUARDAR COMBUSTIBLE Y DESCONTAR DEL TANQUE ---
   const handleSaveFuel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUnit) return;
@@ -77,18 +75,14 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     const sourceTankId = fd.get('sourceTankId') as string;
     const currentKm = Number(fd.get('currentKm')) || 0;
     
-    // Primero: Descontar del tanque (si se eligió uno)
     if (sourceTankId && sourceTankId.trim() !== '') {
       const tank = units.find(u => u.id === sourceTankId);
       if (tank) {
-        const currentLevel = tank.currentFuel || 0;
-        const newFuelLevel = Math.max(0, currentLevel - liters); // Evita números negativos
-        // Actualizamos el tanque en la base de datos
+        const newFuelLevel = Math.max(0, (tank.currentFuel || 0) - liters);
         onSave('units', { ...tank, currentFuel: newFuelLevel });
       }
     }
 
-    // Segundo: Guardar el registro histórico de carga
     onSave('fuel', {
       unitId: selectedUnit.id,
       date: fd.get('date'),
@@ -101,7 +95,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
       userEmail: currentUserEmail
     });
 
-    // Tercero: Actualizar los KM del vehículo
     if (currentKm > 0) {
       onSave('units', { ...selectedUnit, currentKm: currentKm });
     }
@@ -109,7 +102,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     setSelectedUnit(null);
   };
 
-  // --- 3. INGRESAR LITROS AL TANQUE (COMPRAS) ---
   const handleSaveFuelToTank = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUnit) return;
@@ -117,8 +109,7 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     const litersToAdd = Number(fd.get('liters')) || 0;
     const date = fd.get('date') as string;
 
-    const currentLevel = selectedUnit.currentFuel || 0;
-    const newLevel = currentLevel + litersToAdd;
+    const newLevel = (selectedUnit.currentFuel || 0) + litersToAdd;
     
     if (selectedUnit.fuelCapacity && newLevel > selectedUnit.fuelCapacity) {
       if (!window.confirm(`¡Atención! La capacidad es de ${selectedUnit.fuelCapacity} Lts. Con esta carga llegarías a ${newLevel} Lts. ¿Continuar?`)) {
@@ -141,7 +132,6 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     setSelectedUnit(null);
   };
 
-  // --- 4. GUARDAR SERVICE ---
   const handleSaveService = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUnit) return;
@@ -171,7 +161,10 @@ export const MaintenanceView: React.FC<MaintenanceProps> = ({
     const safeServices = Array.isArray(services) ? services : [];
     const safeFuel = Array.isArray(fuel) ? fuel : [];
     const unitServices = safeServices.filter(s => s.unitId === unitId).map(s => ({ ...s, collection: 'services' }));
+    
+    // Captura las cargas propias del tanque, y las cargas de otros vehículos que salieron de este tanque
     const unitFuel = safeFuel.filter(f => f.unitId === unitId || f.sourceTankId === unitId).map(f => ({ ...f, collection: 'fuel', type: 'fuel_load' }));
+    
     return [...unitServices, ...unitFuel].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   };
 
