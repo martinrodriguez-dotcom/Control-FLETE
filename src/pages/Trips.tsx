@@ -50,8 +50,9 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     }
   };
 
+  // CORRECCIÓN AQUÍ: Ahora acepta "items" copiados que no tienen ID
   const handleOpenModal = (item?: Partial<Trip>) => {
-    if (item && item.id) {
+    if (item) {
       setEditingItem(item);
       setAutoDestination(item.destination || '');
       setAutoKm(item.km || '');
@@ -76,10 +77,18 @@ export const TripsView: React.FC<TripsProps> = ({ trips, clients, units, onSave,
     const oldKm = editingItem?.km ? Number(editingItem.km) : 0;
     const kmDifference = newKm - oldKm;
 
-    if (kmDifference !== 0 && unitId) {
+    if (kmDifference !== 0 && unitId && editingItem?.id) {
+      // Solo sumamos/restamos la diferencia al odómetro si estamos EDITANDO un viaje existente
       const unit = units.find(u => u.id === unitId);
       if (unit) {
         const newTotalKm = (unit.currentKm || 0) + kmDifference;
+        onSave('units', { ...unit, currentKm: newTotalKm });
+      }
+    } else if (!editingItem?.id && unitId) {
+      // Si es un NUEVO viaje (o un duplicado), le sumamos los km completos
+      const unit = units.find(u => u.id === unitId);
+      if (unit) {
+        const newTotalKm = (unit.currentKm || 0) + newKm;
         onSave('units', { ...unit, currentKm: newTotalKm });
       }
     }
