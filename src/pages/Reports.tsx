@@ -82,7 +82,9 @@ export const ReportsView: React.FC<ReportsProps> = ({
     const uTotalCosts = uExpTotal + uFuelTotal;
     const uNet = uRevenue - uTotalCosts;
     
-    const kmPerLiter = uFuelLiters > 0 ? (totalKm / uFuelLiters) : 0;
+    // NUEVO CÁLCULO: Litros cada 100km
+    const litersPer100Km = totalKm > 0 ? (uFuelLiters / totalKm) * 100 : 0;
+    
     const costPerKm = totalKm > 0 ? (uTotalCosts / totalKm) : 0;
     const lastService = uServices.length > 0 ? uServices[0] : null;
 
@@ -126,7 +128,7 @@ export const ReportsView: React.FC<ReportsProps> = ({
 
     const timeSeriesData = Object.values(chartDataObj).sort((a: ChartItem, b: ChartItem) => a.rawDate.localeCompare(b.rawDate));
 
-    return { uTrips, uFuel, uRevenue, uFuelTotal, uTotalCosts, uNet, totalKm, kmPerLiter, costPerKm, lastService, expensesByCategory, timeSeriesData };
+    return { uTrips, uFuel, uRevenue, uFuelTotal, uTotalCosts, uNet, totalKm, litersPer100Km, costPerKm, lastService, expensesByCategory, timeSeriesData };
   };
 
   const vehicles = units.filter(u => u.type !== 'tanque');
@@ -148,7 +150,7 @@ export const ReportsView: React.FC<ReportsProps> = ({
   };
 
   // ============================================================================
-  // VISTA 1: PANEL GLOBAL DE REPORTES (Cuando no hay unidad seleccionada)
+  // VISTA 1: PANEL GLOBAL DE REPORTES
   // ============================================================================
   if (!selectedUnit) {
     return (
@@ -302,8 +304,8 @@ export const ReportsView: React.FC<ReportsProps> = ({
         <p className="text-sm text-slate-500 mt-2">Generado por el Sistema Logístico SII PALLETS FLETE</p>
       </div>
 
-      {/* KPI GRID - ESTILO MODERNO */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* KPI GRID - SE MANTIENEN EN FILA AL IMPRIMIR (print:grid-cols-4) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-4">
         <Card className="p-5 border-t-4 border-emerald-500 shadow-sm bg-white dark:bg-slate-800">
           <p className="text-xs uppercase font-bold text-slate-400 mb-1">Ingresos Facturados</p>
           <p className="text-2xl font-black text-emerald-600">{formatCurrency(details.uRevenue)}</p>
@@ -325,14 +327,14 @@ export const ReportsView: React.FC<ReportsProps> = ({
       </div>
 
       {/* KPI SECUNDARIOS TÉCNICOS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-4">
         <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-2 mb-2 text-slate-500"><Map size={16}/> <span className="text-sm font-semibold">KM en Viajes</span></div>
           <p className="text-xl font-bold text-slate-900 dark:text-white">{formatNumber(details.totalKm)} <span className="text-sm font-normal text-slate-400">km</span></p>
         </div>
         <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-2 mb-2 text-slate-500"><Droplets size={16}/> <span className="text-sm font-semibold">Rendimiento</span></div>
-          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatNumber(details.kmPerLiter)} <span className="text-sm font-normal text-slate-400">km/L</span></p>
+          <div className="flex items-center gap-2 mb-2 text-slate-500"><Droplets size={16}/> <span className="text-sm font-semibold">Consumo c/ 100km</span></div>
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatNumber(details.litersPer100Km)} <span className="text-sm font-normal text-slate-400">L/100km</span></p>
         </div>
         <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-2 mb-2 text-slate-500"><DollarSign size={16}/> <span className="text-sm font-semibold">Costo x KM</span></div>
@@ -348,9 +350,9 @@ export const ReportsView: React.FC<ReportsProps> = ({
         </div>
       </div>
 
-      {/* GRÁFICO DE EVOLUCIÓN TEMPORAL */}
-      <Card className="p-0 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm print:hidden">
-        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+      {/* GRÁFICO DE EVOLUCIÓN TEMPORAL - AHORA SE IMPRIME TAMBIÉN */}
+      <Card className="p-0 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm print:shadow-none print:border-0 print:mb-6">
+        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center print:bg-transparent print:border-b-2">
           <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <Activity size={20} className="text-blue-500" /> Historial de Evolución Financiera Mensual
           </h4>
@@ -374,7 +376,7 @@ export const ReportsView: React.FC<ReportsProps> = ({
         </div>
       </Card>
 
-      {/* DESGLOSE EN TABLAS (ACORDEONES) */}
+      {/* DESGLOSE EN TABLAS (ACORDEONES QUE SE DESPLIEGAN SOLOS EN LA IMPRESIÓN) */}
       <div className="space-y-4 pt-4">
         <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">Desglose Operativo Detallado</h3>
 
